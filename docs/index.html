@@ -17,7 +17,7 @@
   <link rel="preload" href="./assets/town.glb" as="fetch" crossorigin>
   <link rel="preload" href="./assets/residents.json" as="fetch" crossorigin>
   <link rel="preload" href="./assets/dm-sans.woff2" as="font" type="font/woff2" crossorigin>
-  <script type="module" src="./explore.js"></script>
+  <script type="module" src="./explore.js?v=ep3-market"></script>
 </head>
 <body>
 <svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
@@ -63,7 +63,7 @@
     <p id="gesture-hint"><span class="pointer-tip">Drag to orbit · Scroll to zoom</span><span class="touch-tip">Drag to orbit · Pinch to zoom</span></p>
     <div class="tools">
       <div class="dock">
-        <button id="open-places" aria-expanded="false" aria-controls="directory"><svg><use href="#i-search"/></svg><span>Find a house</span></button>
+        <button id="open-places" aria-expanded="false" aria-controls="directory"><svg><use href="#i-search"/></svg><span>Town directory</span></button>
         <div class="modes" aria-label="Drag mode"><button id="orbit" aria-pressed="true"><svg><use href="#i-orbit"/></svg><span>Orbit</span></button><button id="pan" aria-pressed="false"><svg><use href="#i-hand"/></svg><span>Pan</span></button></div>
         <button id="walk" class="walk" aria-pressed="false" hidden><svg><use href="#i-walk"/></svg><span id="walk-label">Walk</span></button>
       </div>
@@ -76,7 +76,7 @@
     <section id="card" aria-live="polite" hidden>
       <div class="card-head"><span id="card-lot" class="lot"></span><div class="card-who"><small id="card-eyebrow"></small><strong id="card-name"></strong><span id="card-where"></span></div><button id="card-close" class="plain" aria-label="Close"><svg><use href="#i-close"/></svg></button></div>
       <p id="card-next"></p>
-      <div class="card-actions"><button id="card-as" class="primary"><svg><use href="#i-home"/></svg><span></span></button><button id="card-street"><svg><use href="#i-eye"/></svg><span>Street view</span></button><button id="card-share" aria-label="Share this house" title="Share this house"><svg><use href="#i-share"/></svg><span>Share</span></button><button id="card-leave" hidden>Not me</button></div>
+      <div class="card-actions"><button id="card-as" class="primary"><svg><use href="#i-home"/></svg><span></span></button><button id="card-business" hidden></button><button id="card-street"><svg><use href="#i-eye"/></svg><span>Street view</span></button><button id="card-share" aria-label="Share this house" title="Share this house"><svg><use href="#i-share"/></svg><span>Share</span></button><button id="card-leave" hidden>Not me</button></div>
     </section>
   </section>
   <button id="scrim" aria-label="Close directory" hidden></button>

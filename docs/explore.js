@@ -1,13 +1,22 @@
 import { games, openGames } from './games.js';
 import { sound } from './sound.js';
 const places = [
-  { id: 'market', name: 'Pasar Malam', type: 'Night market', tone: '#bb6845', point: [5.45, .16, 2.62], distance: 2.75, angle: 1.0, tilt: 1.03 },
+  { id: 'market', name: 'Pasar Malam', type: 'Night market', tone: '#bb6845', point: [6.58, .14, 3.14], distance: 4.5, angle: .35, tilt: .91 },
   { id: 'gate', name: 'Town entrance', type: 'Welcome arch', tone: '#658052', point: [0, .15, 5.75], distance: 1.95, angle: .20, tilt: 1.22 },
   { id: 'terraces', name: 'Terrace Lane', type: 'Terrace houses', tone: '#aa744b', point: [-4.84, .22, 1.4], distance: 3.8, angle: -.48, tilt: 1.08 },
   { id: 'shops', name: 'The shophouses', type: 'Shops & clinic', tone: '#b25b50', point: [4.25, .22, 4.35], distance: 3.4, angle: .15, tilt: 1.17 },
   { id: 'apartments', name: 'The apartments', type: 'Apartment blocks', tone: '#77869c', point: [3.0, .53, 1.43], distance: 5.6, angle: .57, tilt: 1.08 },
   { id: 'mansions', name: 'Mansion Row', type: 'Hillside homes', tone: '#5d897b', point: [-1.64, .25, -4.24], distance: 3.7, angle: .43, tilt: 1.10 }
 ];
+// The same catalogue places the Episode 3 Blender stalls and their map destinations.
+try {
+  const response = await fetch('./assets/episode3-places.json');
+  if (!response.ok) throw new Error('Market catalogue ' + response.status);
+  for (const shop of await response.json()) {
+    places.push({detail: true, type: 'Pasar Malam', tone: '#ad6652', distance: .74,
+      tilt: 1.26, angle: (shop.reverse ? Math.PI : 0) + .11, ...shop});
+  }
+} catch (error) { console.error(error); }
 const $ = id => document.getElementById(id);
 const stage = document.querySelector('.map-area');
 const mobile = matchMedia('(max-width:760px), (max-height:500px)');
@@ -159,7 +168,7 @@ function showFallback() {
   fallback = true;
 }
 function remember() {
-  const query = me ? '?as=' + me.u : person ? '?u=' + person.u : '';
+  const query = active ? '?place=' + active.id : me ? '?as=' + me.u : person ? '?u=' + person.u : '';
   try { history.replaceState(null, '', location.pathname + query); } catch {}
   try { me ? localStorage.setItem('taman-pip-me', me.u) : localStorage.removeItem('taman-pip-me'); } catch {}
 }
@@ -169,7 +178,7 @@ function marks() {
   }
 }
 function playButton() {
-  $('play').hidden = !(active?.id === 'market' || person?.kind === 'stall' || (walking && atMarket));
+  $('play').hidden = !(active?.id === 'market' || (active?.detail && !active.type.startsWith('Shophouse')) || person?.kind === 'stall' || (walking && atMarket));
 }
 $('play').onclick = () => openGames(null, me?.u);
 function card() {
@@ -183,6 +192,15 @@ function card() {
   $('card-eyebrow').textContent = mine ? 'You live here' : person.kind === 'pip' ? 'The chairman' : 'Neighbour since Episode ' + person.since;
   $('card-name').textContent = '@' + person.u;
   $('card-where').textContent = person.floor ? 'Apartment \u00b7 Block A, floor ' + person.floor : k.label + ' \u00b7 ' + k.where;
+  const business = places.find(p => p.owner === person.u);
+  const businessButton = $('card-business');
+  businessButton.hidden = !business;
+  if (business) {
+    businessButton.textContent = 'Visit ' + business.name;
+    businessButton.onclick = () => choose(business);
+  }
+  const features = {S14: 'Plunge pool', S04: 'Oversized windows', M04: 'Poolside confetti popper'};
+  if (features[person.lot]) $('card-where').textContent += ' · ' + features[person.lot];
   const next = people.filter(o => o !== person && o.kind === person.kind && Math.hypot(o.p[0]-person.p[0], o.p[1]-person.p[1], o.p[2]-person.p[2]) < k.near)
     .sort((a, b) => a.lot.localeCompare(b.lot)).slice(0, 3);
   $('card-next').replaceChildren();
@@ -230,9 +248,9 @@ $('card-share').onclick = async () => {
 };
 $('me').onclick = () => me && (walking ? startWalk() : visit(me));
 $('population').onclick = () => { tab = 'people'; $('search').value = ''; directory(); if (mobile.matches) drawer(true); else $('search').focus(); };
-function choose(place) {
+function choose(place, initial = false) {
   stopWalk?.();
-  active = place; person = null; street = false; card(); remember();
+  active = place; person = null; street = false; card(); if (!initial) remember();
   $('gesture-hint').hidden = true;
   $('view-name').textContent = place ? place.name : 'Town overview';
   marks();
@@ -262,7 +280,7 @@ function placeRow(p) {
   const img = new Image(); img.src = './assets/' + p.id + '.webp'; img.alt = ''; img.width = 63; img.height = 50; img.loading = 'lazy';
   const words = document.createElement('span');
   const title = document.createElement('strong'); title.textContent = p.name;
-  const type = document.createElement('small'); type.textContent = p.type;
+  const type = document.createElement('small'); type.textContent = p.owner ? p.type + ' · @' + p.owner : p.type;
   words.append(title, type); b.append(img, words); b.onclick = () => choose(p);
   $('places').append(b);
 }
@@ -282,7 +300,7 @@ function directory() {
   const query = $('search').value.trim().toLowerCase().replace(/^@/, '');
   if (eggWords[query] && query !== lastWord) found(eggWords[query]);
   lastWord = query;
-  const foundPlaces = places.filter(p => (p.name + ' ' + p.type).toLowerCase().includes(query));
+  const foundPlaces = places.filter(p => [p.name, p.type, p.owner, p.keywords].join(' ').toLowerCase().includes(query));
   const foundPeople = people.filter(o => (o.u + ' ' + o.lot + ' ' + kinds[o.kind].label + ' ' + kinds[o.kind].where).toLowerCase().includes(query));
   $('count-people').textContent = people.filter(o => o.kind !== 'pip').length || '';
   $('count-places').textContent = places.length;
@@ -302,7 +320,11 @@ function directory() {
       empty.textContent = 'Nobody and nowhere by that name yet. Usernames are spelled as on Instagram.';
       $('places').append(empty);
     }
-  } else if (tab === 'places') foundPlaces.forEach(placeRow);
+  } else if (tab === 'places') {
+    for (const [label, group] of [['Town landmarks', places.filter(p => !p.detail)], ['Pasar Malam', places.filter(p => p.detail && !p.type.startsWith('Shophouse'))], ['Shophouses', places.filter(p => p.type.startsWith('Shophouse'))]]) {
+      if (group.length) { heading(label); group.forEach(placeRow); }
+    }
+  }
   else if (tab === 'games') { heading('Pasar malam stalls'); games.forEach(gameRow); }
   else if (!people.length) {
     const empty = document.createElement('p'); empty.className = 'empty'; empty.textContent = 'Loading the neighbours\u2026'; $('places').append(empty);
@@ -324,6 +346,8 @@ $('search').oninput = directory;
 directory();
 
 const order = ['pip', 'mansion', 'semi', 'terrace', 'apartment', 'stall'];
+const linkedPlace = places.find(p => p.id === params.get('place'));
+if (linkedPlace) choose(linkedPlace, true);
 const roster = fetch('./assets/residents.json').then(r => r.json()).then(data => {
   people = data.residents.sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || a.lot.localeCompare(b.lot));
   const count = people.filter(o => o.kind !== 'pip').length;
@@ -335,7 +359,7 @@ const roster = fetch('./assets/residents.json').then(r => r.json()).then(data =>
   me = find(params.get('as')) || (!params.get('u') && find(saved)) || null;
   identity(); directory();
   const first = find(params.get('u')) || me;
-  if (first) visit(first, true);
+  if (first && !linkedPlace) visit(first, true);
   return people;
 }).catch(error => { console.error('Residents:', error); return []; });
 
@@ -375,7 +399,7 @@ async function start() {
     const el = document.createElement('button'); el.className='pin'; el.dataset.id=p.id; el.style.setProperty('--tone',p.tone);
     el.textContent=p.name;el.setAttribute('aria-label','Visit '+p.name); el.onclick=()=>choose(p); el.hidden=true;
     $('pins').append(el);
-    return {p,el,anchor:new T.Vector3(...p.point).add(new T.Vector3(0,p.id==='apartments'?.7:.49,0))};
+    return {p,el,anchor:new T.Vector3(...p.point).add(new T.Vector3(0,p.detail ? .18 : p.id==='apartments' ? .7 : .49,0))};
   });
   // Two pins follow people: the house being visited and the visitor's own.
   const homePins = ['visiting','mine'].map(kind => {
@@ -534,7 +558,7 @@ async function start() {
       point.copy(pin.anchor).project(camera);
       const x=(point.x+1)*w/2,y=(1-point.y)*h/2;
       const width=pin.p.name.length*6.8+31;
-      const sampled=(dist>9 && !person) || pin.p===active || pin.anchor.distanceTo(controls.target)<dist*.7;
+      const sampled=pin.p===active || ((!pin.p.detail || dist<3) && ((dist>9 && !person) || pin.anchor.distanceTo(controls.target)<dist*.7));
       const r={l:x-width/2,r:x+width/2,t:y-45,b:y};
       const blocked=used.some(b=>r.l<b.r+4 && r.r>b.l-4 && r.t<b.b && r.b>b.t);
       const visible=loaded && sampled && !blocked && point.z<1 && point.z>-1 && r.l>2 && r.r<w-2 && y>84 && y<h-58;
@@ -606,7 +630,14 @@ async function start() {
     if(street) fly(new T.Vector3(o.p[0],Math.max(.12,o.p[1]-(o.kind==='mansion'?.42:.30)),o.p[2]),near*(camera.aspect<1?1.2:1),o.face,o.kind==='apartment'?1.36:1.45,camera.aspect<1?74:60);
     else fly(new T.Vector3(o.p[0],Math.max(.1,o.p[1]-.25),o.p[2]),far*tall,o.face+(o.kind==='apartment'?.35:.6),o.kind==='apartment'?1.18:.98,38);
   };
-  navigate=p=>{atHome=false;fly(new T.Vector3(...p.point),p.distance*Math.max(1,.78/camera.aspect),p.angle,p.tilt,38);};
+  navigate=p=>{
+    atHome=false;
+    // Widen the lens in portrait so the camera stays in the aisle across from the counter.
+    const fov=p.fov || 38;
+    const portraitFov=2*Math.atan(Math.tan(fov*Math.PI/360)*1.12/camera.aspect)*180/Math.PI;
+    const reach=p.detail ? p.distance : p.distance*Math.max(1,.78/camera.aspect);
+    fly(new T.Vector3(...p.point),reach,p.angle,p.tilt,p.detail ? Math.max(fov,portraitFov) : fov);
+  };
   resetCamera=()=>{atHome=true;fly(homeTarget,homeDistance(),.43,homeTilt(),38);};
   function resize() {
     const w=view.clientWidth,h=view.clientHeight;
@@ -617,7 +648,7 @@ async function start() {
   }
   new ResizeObserver(resize).observe(view);resize();
   const loader=new T.GLTFLoader().setMeshoptDecoder(T.MeshoptDecoder);
-  asset=await loader.loadAsync('./assets/town.glb',e=>{
+  asset=await loader.loadAsync('./assets/town.glb?v=ep3-market',e=>{
     if(e.lengthComputable && e.total)$('map-status').textContent='Loading the town\u2026 '+Math.round(e.loaded/e.total*100)+'%';
   });
   asset.scene.traverse(o=>{
@@ -642,6 +673,7 @@ async function start() {
     return y>=2.949?.08:0;
   };
   const CELL=.04, HALF=9.32, SIDE=Math.ceil(HALF*2/CELL);
+  const inMarket = (x,z) => Math.hypot(x-5.45,z-2.75)<1.25 || (x>6.28 && x<9 && z>3.03 && z<4.62);
   function buildGrid() {
     // Mark every map cell that has something solid between ankle and shoulder height.
     grid=new Uint8Array(SIDE*SIDE);
@@ -848,7 +880,7 @@ async function start() {
         if(here && !spot.in)found(spot.id);
         spot.in=here;
       }
-      const among=Math.hypot(nx-5.45,nz-2.75)<1.25;
+      const among=inMarket(nx,nz);
       if(among!==atMarket){atMarket=among;playButton();}
       controls.target.x+=mx;controls.target.y+=my;controls.target.z+=mz;
       camera.position.x+=mx;camera.position.y+=my;camera.position.z+=mz;
@@ -865,14 +897,16 @@ async function start() {
     if(!grid)buildGrid();
     if(!hero)buildHero();
     dress(me);
-    let [x,z]=me?me.g:[0,6.2];             // visitors arrive just outside the arch
+    const shop=active?.detail ? active : null;
+    const approach=shop?.reverse ? -1 : 1;
+    let [x,z]=shop ? [shop.point[0],shop.point[2]+approach*.26] : me ? me.g : [0,6.2];
     if(blocked(x,z)) search: for(let r=1;r<40;r++)for(let i=0;i<16;i++) {  // nearest clear spot
       const t=i/16*Math.PI*2,tx=x+Math.cos(t)*r*CELL,tz=z+Math.sin(t)*r*CELL;
       if(!blocked(tx,tz)){x=tx;z=tz;break search;}
     }
-    hero.x=x;hero.z=z;hero.y=groundAt(x,z);hero.heading=me?me.face:Math.PI;hero.phase=0;
+    hero.x=x;hero.z=z;hero.y=groundAt(x,z);hero.heading=shop ? (shop.reverse ? 0 : Math.PI) : me ? me.face : Math.PI;hero.phase=0;
     hero.root.visible=hero.tag.visible=true;
-    atMarket=Math.hypot(x-5.45,z-2.75)<1.25;
+    atMarket=inMarket(x,z);
     walking=true;person=null;active=null;street=false;stickX=stickY=0;for(const k in keys)keys[k]=false;
     card();marks();remember();
     for(const pin of $('pins').children)pin.classList.remove('current');
@@ -884,7 +918,8 @@ async function start() {
     // Residents are met from the street with their house behind them; in the narrow lanes the camera
     // looks along the lane from above the roofs. Visitors are followed from behind, towards the arch.
     const lane=me && (me.kind==='terrace' || me.kind==='semi'),reach=Math.min(1.35,Math.max(1,.78/camera.aspect));
-    if(!me) fly(new T.Vector3(x,hero.y+.09,z),1.45*reach,0,1.22,38);
+    if(shop) fly(new T.Vector3(x,hero.y+.09,z),.78*reach,shop.angle,1.14,38);
+    else if(!me) fly(new T.Vector3(x,hero.y+.09,z),1.45*reach,0,1.22,38);
     else if(lane) fly(new T.Vector3(x,hero.y+.09,z),1.5*reach,hero.heading+Math.PI/2,.86,38);
     else fly(new T.Vector3(x,hero.y+.09,z),1.35*reach,hero.heading+.35,1.16,38);
   };
