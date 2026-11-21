@@ -1,5 +1,5 @@
-import { games, openGames } from './games.js?v=202611212302';
-import { sound } from './sound.js?v=202611212302';
+import { games, openGames } from './games.js?v=202611212331';
+import { sound } from './sound.js?v=202611212331';
 const places = [
   { id: 'market', name: 'Pasar Malam', type: 'Night market', tone: '#bb6845', point: [6.58, .14, 3.14], distance: 4.5, angle: .35, tilt: .91 },
   { id: 'gate', name: 'Town entrance', type: 'Welcome arch', tone: '#658052', point: [0, .15, 5.75], distance: 1.95, angle: .20, tilt: 1.22 },
@@ -86,7 +86,7 @@ function album() {
   eggCount();
 }
 function found(id) {
-  if (eggsFound[id]) return;                        // each egg is announced once; after that it lives in the album
+  if (!eggs[id] || eggsFound[id]) return;                        // each egg is announced once; after that it lives in the album
   const egg = eggs[id], fresh = true;
   eggsFound[id] = Date.now(); saveEggs();
   $('egg-from').textContent = egg.from; $('egg-line').textContent = egg.line; $('egg-note').textContent = egg.note;
@@ -149,6 +149,7 @@ let showPerson;
 let walking = false;
 let atMarket = false;   // the walker is standing among the stalls
 let startWalk;
+let todo = [];        // things to do around the taman, filled in once the town is built
 let stopWalk;
 let navigate;
 let resetCamera;
@@ -213,6 +214,7 @@ function gameHere() {
 function playButton() {
   const game = gameHere();
   $('play').hidden = !game;
+  $('todo').classList.toggle('away', !walking && !!game);
   if (game) $('play-name').textContent = 'Play ' + game.name;
 }
 $('play').onclick = () => { const game = gameHere(); if (game) openGames(game.id, me?.u); };
@@ -308,6 +310,17 @@ function gameRow(game) {
   b.onclick = () => { if (mobile.matches) drawer(false, false); choose(gamePlace(game.id)); };   // to the stall; the game is played there
   $('places').append(b);
 }
+function doRow(item) {
+  const b = document.createElement('button');
+  b.className = 'place person';
+  const lot = document.createElement('span'); lot.className = 'lot'; lot.style.setProperty('--tone', item.tone); lot.textContent = 'Go';
+  const words = document.createElement('span');
+  const title = document.createElement('strong'); title.textContent = item.name;
+  const type = document.createElement('small'); type.textContent = item.note;
+  words.append(title, type); b.append(lot, words);
+  b.onclick = () => { if (mobile.matches) drawer(false, false); item.go(); };
+  $('places').append(b);
+}
 function placeRow(p) {
   const b = document.createElement('button');
   b.className = 'place'; b.dataset.id = p.id;
@@ -336,9 +349,10 @@ function directory() {
   const foundPeople = people.filter(o => (o.u + ' ' + o.lot + ' ' + kinds[o.kind].label + ' ' + kinds[o.kind].where).toLowerCase().includes(query));
   $('count-people').textContent = people.filter(o => o.kind !== 'pip').length || '';
   $('count-places').textContent = places.length;
-  $('count-games').textContent = games.length;
+  $('count-games').textContent = games.length + todo.length;
   $('tab-games').setAttribute('aria-selected', String(tab === 'games'));
   const foundGames = games.filter(o => (o.name + ' ' + o.stall + ' game games').toLowerCase().includes(query));
+  const foundDo = todo.filter(o => (o.name + ' ' + o.note).toLowerCase().includes(query));
   $('tab-people').setAttribute('aria-selected', String(tab === 'people'));
   $('tab-places').setAttribute('aria-selected', String(tab === 'places'));
   document.querySelector('.tabs').hidden = !!query;
@@ -347,7 +361,8 @@ function directory() {
     if (foundPeople.length) { heading('Neighbours'); foundPeople.forEach(personRow); }
     if (foundPlaces.length) { heading('Places'); foundPlaces.forEach(placeRow); }
     if (foundGames.length) { heading('Games'); foundGames.forEach(gameRow); }
-    if (!foundPeople.length && !foundPlaces.length && !foundGames.length) {
+    if (foundDo.length) { heading('Things to do'); foundDo.forEach(doRow); }
+    if (!foundPeople.length && !foundPlaces.length && !foundGames.length && !foundDo.length) {
       const empty = document.createElement('p'); empty.className = 'empty';
       empty.textContent = 'Nobody and nowhere by that name yet. Usernames are spelled as on Instagram.';
       $('places').append(empty);
@@ -357,7 +372,7 @@ function directory() {
       if (group.length) { heading(label); group.forEach(placeRow); }
     }
   }
-  else if (tab === 'games') { heading('Pasar malam stalls'); games.forEach(gameRow); }
+  else if (tab === 'games') { heading('Pasar malam games'); games.forEach(gameRow); if (todo.length) { heading('Around the taman'); todo.forEach(doRow); } }
   else if (!people.length) {
     const empty = document.createElement('p'); empty.className = 'empty'; empty.textContent = 'Loading the neighbours\u2026'; $('places').append(empty);
   } else {
@@ -372,6 +387,7 @@ function directory() {
 $('tab-people').onclick = () => { tab = 'people'; directory(); };
 $('tab-places').onclick = () => { tab = 'places'; directory(); };
 $('tab-games').onclick = () => { tab = 'games'; directory(); };
+$('todo').onclick = () => { tab = 'games'; $('search').value = ''; directory(); drawer(true); };
 $('search').onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); $('places').querySelector('button')?.click(); } };
 $('search').oninput = directory;
 directory();
@@ -718,6 +734,38 @@ async function start() {
     o.material=new T.MeshLambertMaterial({color:m.color,vertexColors:m.vertexColors,map:m.map,side:m.side,alphaTest:m.alphaTest});
     m.dispose();
   });
+  // The town arrives as one merged mesh, which draws every triangle whatever the camera sees. Cut it into
+  // ground tiles that share the same vertex buffers, so the tiles behind a walker are skipped.
+  {
+    const big=[],v=new T.Vector3(),TILES=10,probe=new T.PlaneGeometry(1,1);probe.computeBoundingSphere();
+    const Shape=Object.getPrototypeOf(T.PlaneGeometry),Sphere=probe.boundingSphere.constructor;
+    asset.scene.updateMatrixWorld(true);
+    asset.scene.traverse(o=>{if(o.isMesh && o.geometry.index && o.geometry.index.count>30000)big.push(o);});
+    for(const o of big) {
+      const g=o.geometry,p=g.attributes.position,ix=g.index.array,n=p.count,w=new Float32Array(n*3),bins=new Map();
+      for(let i=0;i<n;i++){v.fromBufferAttribute(p,i).applyMatrix4(o.matrixWorld);w[i*3]=v.x;w[i*3+1]=v.y;w[i*3+2]=v.z;}
+      for(let i=0;i<ix.length;i+=3) {
+        const a=ix[i]*3,b=ix[i+1]*3,c=ix[i+2]*3,cx=(w[a]+w[b]+w[c])/3,cy=(w[a+1]+w[b+1]+w[c+1])/3,cz=(w[a+2]+w[b+2]+w[c+2])/3;
+        if(cx>2.07 && cx<2.23 && cy>.035 && cy<.163 && cz>2.325 && cz<2.375)continue;   // the swing seats: rebuilt below so they can swing
+        const tx=Math.min(TILES-1,Math.max(0,Math.floor((cx+9.3)/18.6*TILES))),tz=Math.min(TILES-1,Math.max(0,Math.floor((cz+9.3)/18.6*TILES))),key=tz*TILES+tx;
+        let bin=bins.get(key);if(!bin)bins.set(key,bin={list:[],lo:[1e9,1e9,1e9],hi:[-1e9,-1e9,-1e9]});
+        bin.list.push(ix[i],ix[i+1],ix[i+2]);
+        for(const q of [a,b,c])for(let k=0;k<3;k++){if(w[q+k]<bin.lo[k])bin.lo[k]=w[q+k];if(w[q+k]>bin.hi[k])bin.hi[k]=w[q+k];}
+      }
+      const inverse=o.matrixWorld.clone().invert(),grow=1/o.matrixWorld.getMaxScaleOnAxis();
+      for(const bin of bins.values()) {
+        const tile=new Shape();
+        for(const name in g.attributes)tile.setAttribute(name,g.attributes[name]);
+        tile.setIndex(bin.list);
+        const centre=new T.Vector3((bin.lo[0]+bin.hi[0])/2,(bin.lo[1]+bin.hi[1])/2,(bin.lo[2]+bin.hi[2])/2);
+        const radius=Math.hypot(bin.hi[0]-bin.lo[0],bin.hi[1]-bin.lo[1],bin.hi[2]-bin.lo[2])/2;
+        tile.boundingSphere=new Sphere(centre.applyMatrix4(inverse),radius*grow*1.02);
+        const part=new T.Mesh(tile,o.material);part.castShadow=part.receiveShadow=true;
+        part.position.copy(o.position);part.quaternion.copy(o.quaternion);part.scale.copy(o.scale);o.parent.add(part);
+      }
+      o.parent.remove(o);
+    }
+  }
   scene.add(asset.scene);renderer.shadowMap.needsUpdate=true;loaded=true;
   $('map-status').hidden=true;document.body.dataset.scene='ready';
   if(active)navigate(active);
@@ -800,10 +848,12 @@ async function start() {
     hero.tag=new T.Mesh(new T.PlaneGeometry(1,.3),atlas.material);
     scene.add(root,hero.tag);
   }
-  function dress(who) {                          // shell on top, an outfit colour picked from the username below
+  function lookOf(who) {
     let h=7;for(const ch of who?who.u:'visitor')h=(h*31+ch.charCodeAt(0))>>>0;
-    const suit=who?.kind==='pip'?'#7a2e35':outfits[h%outfits.length],shell=who?.kind==='pip'?'#f3ead8':['#f1e2c6','#ecd3b0','#e2c39c','#f4e8d2'][h%4];
-    const rings=eggRings(suit,shell);
+    return {suit:who?.kind==='pip'?'#7a2e35':outfits[h%outfits.length],shell:who?.kind==='pip'?'#f3ead8':['#f1e2c6','#ecd3b0','#e2c39c','#f4e8d2'][h%4]};
+  }
+  function dress(who) {                          // shell on top, an outfit colour picked from the username below
+    const {suit,shell}=lookOf(who),rings=eggRings(suit,shell);
     if(hero.suit){hero.body.remove(hero.suit);hero.suit.geometry.dispose();}
     hero.suit=new T.Mesh(lathe(rings,20),hero.body.children[0].material);hero.suit.position.y=.008;hero.body.add(hero.suit);
     atlas.cellUV(hero.tag.geometry,atlas.index(who));
@@ -873,8 +923,8 @@ async function start() {
     return path.reverse();
   }
   const folkPaint=new T.MeshLambertMaterial({vertexColors:true}), suits={};
-  function makeFolk(i,kid) {
-    const suit=outfits[(i*5+3)%outfits.length],shell=['#f1e2c6','#ecd3b0','#e2c39c','#f4e8d2'][(i*7+1)%4],key=suit+shell;
+  function makeFolk(i,kid,look) {
+    const suit=look?look.suit:outfits[(i*5+3)%outfits.length],shell=look?look.shell:['#f1e2c6','#ecd3b0','#e2c39c','#f4e8d2'][(i*7+1)%4],key=suit+shell;
     const root=new Group(),body=new Group(),feet=[];root.add(body);
     const dressed=new T.Mesh(suits[key]||(suits[key]=lathe(eggRings(suit,shell),14)),folkPaint);dressed.position.y=.008;body.add(dressed);
     const eyeR=eggRadius(Math.acos(1-2*.072/.108))+.0005;
@@ -884,7 +934,7 @@ async function start() {
       const foot=new T.Mesh(suits.foot||(suits.foot=ball(.013,'#5b3a26')),folkPaint);foot.scale.set(1,.55,1.5);foot.position.set(side*.019,0,.006);
       root.add(foot);feet.push(foot);
     }
-    if(i%4===1){const cap=new T.Mesh(suits['cap'+suit]||(suits['cap'+suit]=ball(.026,suit)),folkPaint);cap.scale.set(1,.5,1);cap.position.y=.104;body.add(cap);}
+    if(!look && i%4===1){const cap=new T.Mesh(suits['cap'+suit]||(suits['cap'+suit]=ball(.026,suit)),folkPaint);cap.scale.set(1,.5,1);cap.position.y=.104;body.add(cap);}
     const blob=new T.Mesh(new T.PlaneGeometry(.17,.17),shadow.material);blob.rotation.x=-Math.PI/2;blob.position.y=.004;blob.renderOrder=1;root.add(blob);
     scene.add(root);
     return {root,body,feet,kid,size:kid?.66:.9+(i*37%10)/50,speed:kid?.46:.27+(i*53%10)/70,seed:i+1,x:0,z:0,y:0,heading:0,phase:Math.random()*6,
@@ -985,7 +1035,7 @@ async function start() {
   }
   setTimeout(buildTown,600);
   for(const box of document.querySelectorAll('dialog'))box.addEventListener('close',()=>wake());
-  if(params.has('debug'))window.__town={folk:()=>folk.map(n=>[+n.x.toFixed(2),+n.z.toFixed(2),n.state,n.spot?.kind]),haunts,fare:()=>({fare,WIDE,STEP,HALF})};
+  if(params.has('debug'))window.__town={go:(x,z,f)=>startWalk({x,z,face:f}),move:(x,z)=>{moveHero(x,z);wake();},hero:()=>hero&&[hero.x,hero.y,hero.z,!!hero.wet,!!ride,hero.root.visible,hero.root.position.toArray(),controls.target.toArray(),camera.position.toArray(),!!flight],info:()=>({...renderer.info.render,geo:renderer.info.memory.geometries,tex:renderer.info.memory.textures,pr:renderer.getPixelRatio()}),folk:()=>folk.map(n=>[+n.x.toFixed(2),+n.z.toFixed(2),n.state,n.spot?.kind]),haunts,fare:()=>({fare,WIDE,STEP,HALF})};
   // ---- Things that move: the boom gates, the guard, and Pip's roadster.
   const tint=new T.Color(), flat=new T.MeshLambertMaterial({vertexColors:true,side:2});
   function prism(out,profile,x0,x1,hex) {        // a [forward, up] outline pushed across x0..x1
@@ -1101,26 +1151,200 @@ async function start() {
       }
     }
     folkBusy=townStep(dt,now);
+    if(doStep(dt,now))busy=true;
   };
+
+  // ---- Things to do: the mansion pools, the playground, doorbells and your own house. A gold star stands
+  // over each one, and walking up to it brings up a button for what can be done there.
+  let ride=null, actKey='', caller=null;
+  const star=picture(64,64,g=>{
+    g.translate(32,32);g.beginPath();
+    for(let i=0;i<8;i++){const r=i%2?10:28,a=i*Math.PI/4;g.lineTo(Math.sin(a)*r,-Math.cos(a)*r);}
+    g.closePath();g.fillStyle='#f6cf62';g.fill();g.lineWidth=4;g.strokeStyle='#8a6414';g.stroke();
+    g.beginPath();g.arc(0,0,5,0,7);g.fillStyle='#fffbe6';g.fill();
+  });
+  const beacons=[];
+  function beacon(x,y,z,press) {
+    const mesh=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({map:star,transparent:true,depthWrite:false}));
+    mesh.position.set(x,y,z);mesh.renderOrder=3;scene.add(mesh);beacons.push({mesh,y,k:beacons.length});
+    tappable.push([mesh,'do',.3,press]);
+  }
+  const pools=people.filter(o=>o.kind==='mansion').map(o=>({o,cx:o.g[0]-(Math.sign(o.p[0]-o.g[0])||1)*.33,gate:o.p[0]}));
+  const poolAt=(x,z)=>z<-4.09 && z>-4.59 ? pools.find(q=>Math.abs(x-q.cx)<.10) : null;
+  const deckAt=(x,z)=>z<-4.02 && z>-4.66 ? pools.find(q=>Math.abs(x-q.cx)<.17) : null;
+  const SWING=[2.15,2.35], SLIDE=[1.35,2.36];
+  for(const q of pools)beacon(q.cx,.30,-4.34,()=>startWalk({x:q.gate,z:-3.62,face:Math.PI}));
+  beacon(SWING[0],.27,SWING[1],()=>startWalk({x:SWING[0],z:2.52,face:Math.PI}));
+  beacon(SLIDE[0],.33,SLIDE[1],()=>startWalk({x:SLIDE[0],z:2.80,face:Math.PI}));
+  for(const p of places)if(stallGame[p.id])beacon(p.point[0],(p.roof||.345)+.22,p.point[2],()=>choose(p));
+  const swings=[2.105,2.195].map(x=>{
+    const out=fresh();block(out,0,-.1205,0,.04,.005,.02,'#c8392e');
+    for(const side of [-1,1])block(out,side*.012,-.06,0,.002,.12,.002,'#6b6f73');
+    const seat=solidMesh(out);seat.position.set(x,.17,SWING[1]);scene.add(seat);return seat;
+  });
+  function moveHero(x,z,y=groundAt(x,z)) {      // put the walker somewhere and bring the camera along
+    const mx=x-hero.x,my=y-hero.y,mz=z-hero.z;
+    hero.x=x;hero.y=y;hero.z=z;
+    controls.target.x+=mx;controls.target.y+=my;controls.target.z+=mz;camera.position.x+=mx;camera.position.y+=my;camera.position.z+=mz;
+  }
+  function splash(x,z,big) {
+    for(let i=0;i<(big?14:6);i++)puff(x,groundAt(x,z)+.03,z,big?.32:.15,big?.14:.09,big?1:.6);
+    sound.splash(big);
+  }
+  function startSwing() {
+    const seat=swings[0];let amp=.32,t=0;
+    const off=()=>{ride=null;seat.rotation.x=0;hero.root.rotation.set(0,0,0);hero.heading=0;moveHero(seat.position.x,2.5);};
+    moveHero(seat.position.x,SWING[1]);
+    ride={acts:[['Push!',()=>{amp=Math.min(1.1,amp+.26);sound.good();},'push'],['Hop off',off,'off']],
+      step(dt,push) {
+        if(push>.3 && t>.5)return off();
+        t+=dt;amp=Math.max(.1,amp-dt*.045);
+        const lean=amp*Math.sin(t*4.4);
+        seat.rotation.x=lean;
+        hero.root.position.set(seat.position.x,.17-.123*Math.cos(lean),SWING[1]-.123*Math.sin(lean));hero.root.rotation.set(lean,0,0);
+        hero.body.position.y=0;hero.body.rotation.set(0,0,0);
+        for(const foot of hero.feet){foot.position.z=.006+.012;foot.position.y=0;}
+      }};
+  }
+  function startSlide() {
+    const from=[hero.x,hero.z];let t=0;
+    ride={acts:[],
+      step(dt) {
+        t+=dt;let x=SLIDE[0],y,z,tilt=0;
+        if(t<.45){const k=t/.45;x=from[0]+(x-from[0])*k;z=from[1]+(2.45-from[1])*k;y=.105*k+Math.sin(k*Math.PI)*.07;}
+        else if(t<1.4){const k=(t-.45)/.95,e=k*k;if(t-dt<.45)sound.whoosh();z=2.45+.20*e;y=.105-.093*e;tilt=-.42;}
+        else if(t<1.75){const k=(t-1.4)/.35;z=2.65+.12*k;y=Math.sin(k*Math.PI)*.03;}
+        else{ride=null;hero.root.rotation.set(0,0,0);moveHero(x,2.77);puff(x,.02,2.72,.1,.1,.6);sound.thunk();return;}
+        moveHero(x,z,y);hero.heading=0;
+        hero.root.position.set(x,y,z);hero.root.rotation.set(tilt,0,0);hero.body.position.y=0;hero.body.rotation.set(0,0,0);
+      }};
+  }
+  function dive(q) {
+    const from=[hero.x,hero.z],to=[q.cx,clamp(hero.z,-4.5,-4.18)],face=Math.atan2(to[0]-from[0],to[1]-from[1]);let t=0;
+    sound.good();
+    ride={acts:[],
+      step(dt) {
+        t+=dt;const k=Math.min(1,t/.75),x=from[0]+(to[0]-from[0])*k,z=from[1]+(to[1]-from[1])*k,y=.08+Math.sin(k*Math.PI)*.16;
+        moveHero(x,z,y);hero.heading=face;
+        hero.root.position.set(x,y,z);hero.root.rotation.set(k*Math.PI*2,face,0);hero.body.position.y=0;hero.body.rotation.set(0,0,0);
+        if(k===1){ride=null;hero.root.rotation.set(0,0,0);moveHero(x,z);hero.wet=true;splash(x,z,true);}
+      }};
+  }
+  // Your own house: a porch light and a few flowers by the gate, remembered on this phone.
+  let nest={u:'',light:false,plants:0};
+  try{nest={...nest,...JSON.parse(localStorage.getItem('taman-pip-home')||'{}')};}catch{}
+  const garden=new Group(),glow=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({map:mist,color:0xffc45e,transparent:true,depthWrite:false}));
+  glow.visible=false;glow.renderOrder=2;scene.add(garden,glow);
+  const frontOf=who=>{
+    const back={mansion:.2,apartment:.3}[who.kind]||.09;
+    return [who.g[0]-Math.sin(who.face)*back,who.g[1]-Math.cos(who.face)*back];
+  };
+  function homeLook() {
+    glow.visible=false;while(garden.children.length)garden.remove(garden.children[0]);
+    if(!me || me.kind==='stall')return;
+    if(nest.u!==me.u)nest={u:me.u,light:false,plants:0};
+    const [bx,bz]=frontOf(me),f=me.face,y=groundAt(me.g[0],me.g[1]);
+    for(let i=0;i<nest.plants;i++) {
+      const out=fresh(),side=i<3?-(.05+i*.03):.05+(i-3)*.03;block(out,0,.014,0,.004,.028,.004,'#4f7f43');
+      const flower=solidMesh(out),head=new T.Mesh(ball(.009,['#e9617c','#f4ce70','#f3efe6','#c77ad1','#f08a4b','#7fb8e8'][i]),folkPaint);
+      head.position.y=.022;flower.add(head);flower.position.set(bx+Math.cos(f)*side,y,bz-Math.sin(f)*side);garden.add(flower);
+    }
+    glow.visible=nest.light;glow.position.set(bx-Math.sin(f)*.14,y+.12,bz-Math.cos(f)*.14);glow.scale.setScalar(.46);
+    try{localStorage.setItem('taman-pip-home',JSON.stringify(nest));}catch{}
+    wake();
+  }
+  homeLook();
+  function ring(o) {                             // the neighbour comes to the gate, waves and goes back in
+    sound.bell();
+    if(caller)scene.remove(caller.n.root,caller.tag);
+    const n=makeFolk(0,false,lookOf(o)),tag=new T.Mesh(new T.PlaneGeometry(1,.3),atlas.material);
+    atlas.cellUV(tag.geometry,atlas.index(o));scene.add(tag);
+    n.x=o.g[0]-Math.sin(o.face)*.07;n.z=o.g[1]-Math.cos(o.face)*.07;n.y=groundAt(n.x,n.z);n.heading=o.face;n.size=.95;n.show=0;
+    caller={n,tag,t:0};wake();
+  }
+  function actions() {
+    if(!walking || !hero)return [];
+    if(ride)return ride.acts;
+    const out=[],x=hero.x,z=hero.z;
+    if(Math.hypot(x-SWING[0],z-2.48)<.2)out.push(['Swing',startSwing,'swing']);
+    if(Math.hypot(x-SLIDE[0],z-2.78)<.2)out.push(['Slide',startSlide,'slide']);
+    for(const q of pools) {
+      if(Math.hypot(x-q.gate,z+3.62)<.2)out.push(['Visit the pool',()=>{hero.heading=Math.PI;moveHero(q.gate,-3.88);},'in'+q.o.u]);
+      else if(Math.hypot(x-q.gate,z+3.88)<.13)out.push(['Back to the street',()=>{hero.heading=0;moveHero(q.gate,-3.62);hero.wet=false;},'out'+q.o.u]);
+    }
+    const deck=!hero.wet && deckAt(x,z);
+    if(deck)out.push(['Cannonball!',()=>dive(deck),'dive']);
+    let near=null,reach=.17;
+    for(const o of people){if(o.kind==='stall')continue;const d=Math.hypot(x-o.g[0],z-o.g[1]);if(d<reach){reach=d;near=o;}}
+    if(near && near===me) {
+      out.push([nest.light?'Porch light off':'Porch light on',()=>{nest.light=!nest.light;sound.good();homeLook();},'light'+nest.light]);
+      out.push([nest.plants<6?'Water the plants':'Water the garden',()=>{
+        if(nest.plants<6)nest.plants++;
+        const [bx,bz]=frontOf(me);for(let i=0;i<6;i++)puff(bx,hero.y+.05,bz,.1,.06,.5);
+        sound.sizzle();homeLook();
+      },'water'+nest.plants]);
+    }
+    else if(near)out.push(['Ring @'+(near.u.length>15?near.u.slice(0,14)+'…':near.u),()=>ring(near),'ring'+near.u]);
+    return out;
+  }
+  function showActs() {
+    const list=actions(),key=list.map(a=>a[2]).join('|');
+    if(key===actKey)return;
+    actKey=key;
+    $('act-list').replaceChildren(...list.map(([label,press])=>{
+      const b=document.createElement('button');b.className='act';b.textContent=label;
+      b.onclick=()=>{press();showActs();wake();};return b;
+    }));
+  }
+  function doStep(dt,now) {
+    const still=reducedMotion.matches;
+    for(const b of beacons) {
+      const far=camera.position.distanceTo(b.mesh.position),s=clamp(far*.034,.05,.34);
+      b.mesh.scale.set(s,s,1);b.mesh.position.y=b.y+(still?0:Math.sin(now/420+b.k)*.012);b.mesh.quaternion.copy(camera.quaternion);
+      if(!still)b.mesh.rotateZ(Math.sin(now/600+b.k)*.25);
+    }
+    if(glow.visible)glow.quaternion.copy(camera.quaternion);
+    if(!caller)return false;
+    const c=caller,n=c.n;c.t+=dt;
+    n.show=c.t<3.2?Math.min(1,c.t*5):Math.max(0,1-(c.t-3.2)*5);
+    n.hello=c.t>.4 && c.t<1.3?1.3-c.t:c.t>1.3 && c.t<2.2?2.2-c.t:0;
+    if(hero)turnTo(n,Math.atan2(hero.x-n.x,hero.z-n.z),dt,10);
+    pose(n,0,now);
+    c.tag.visible=n.show>.5;c.tag.scale.set(.2,.2,1);c.tag.position.set(n.x,n.y+.165,n.z);c.tag.quaternion.copy(camera.quaternion);
+    if(c.t>3.45){scene.remove(n.root,c.tag);caller=null;}
+    return true;
+  }
+  todo=[
+    {name:'Swim in a mansion pool',note:'Mansion Row · cannonballs allowed',tone:'#3f8fa6',go:()=>{const q=pools.find(o=>o.o===me)||pools[Math.floor(Math.random()*pools.length)];if(q)startWalk({x:q.gate,z:-3.62,face:Math.PI});}},
+    {name:'Playground swing',note:'Hop on and push',tone:'#3f6e9a',go:()=>startWalk({x:SWING[0],z:2.52,face:Math.PI})},
+    {name:'Playground slide',note:'Up the tower and down',tone:'#c58a2b',go:()=>startWalk({x:SLIDE[0],z:2.80,face:Math.PI})},
+    {name:'Ring a doorbell',note:'A neighbour comes out to wave',tone:'#7a4c7e',go:()=>{const list=people.filter(o=>o!==me && o.kind!=='stall'),o=list[Math.floor(Math.random()*list.length)];if(o)startWalk({x:o.g[0],z:o.g[1],face:o.face+Math.PI});}},
+    {name:'Your own house',note:'Porch light and plants · pick Explore as on your house first',tone:'#5b7d4a',go:()=>{if(me)startWalk();else{tab='people';directory();drawer(true);}}}
+  ];
+  directory();
   const clamp=T.MathUtils.clamp;
   const keys={};let stickX=0,stickY=0,clock=0,sprint=false,lean=0;
   function stride(now) {
     const dt=Math.min(.05,(now-clock)/1000||0);clock=now;
     let jx=stickX+(keys.right?1:0)-(keys.left?1:0),jy=stickY+(keys.up?1:0)-(keys.down?1:0);
     const push=Math.hypot(jx,jy);moving=push>.1;
+    if(ride){moving=true;ride.step(dt,push,now);showActs();return;}
     if(moving) {
       if(push>1){jx/=push;jy/=push;}
       flight=null;
       const turn=controls.getAzimuthalAngle(),dx=-Math.sin(turn)*jy+Math.cos(turn)*jx,dz=-Math.cos(turn)*jy-Math.sin(turn)*jx;
       const run=(sprint||keys.run)?1:0;lean+=(run-lean)*Math.min(1,dt*8);
-      const step=.62*(1+lean*.95)*dt;let nx=hero.x+dx*step,nz=hero.z+dz*step;
+      const step=.62*(1+lean*.95)*(hero.wet?.5:1)*dt;let nx=hero.x+dx*step,nz=hero.z+dz*step;
       if(blocked(nx,nz)){ if(!blocked(nx,hero.z))nz=hero.z; else if(!blocked(hero.x,nz))nx=hero.x; else{nx=hero.x;nz=hero.z;} }
       const want=Math.atan2(dx,dz),gap=Math.atan2(Math.sin(want-hero.heading),Math.cos(want-hero.heading));
       const before=Math.floor(hero.phase/Math.PI);
       hero.heading+=gap*Math.min(1,dt*12);hero.phase+=dt*15*(1+lean*.7)*Math.min(1,push);
-      if(Math.floor(hero.phase/Math.PI)!==before)sound.step();
+      if(Math.floor(hero.phase/Math.PI)!==before && !hero.wet)sound.step();
       const ny=groundAt(nx,nz),mx=nx-hero.x,my=ny-hero.y,mz=nz-hero.z;
       hero.x=nx;hero.y=ny;hero.z=nz;
+      const wet=!!poolAt(nx,nz);
+      if(wet!==!!hero.wet){hero.wet=wet;if(wet)splash(nx,nz,false);}
+      if(wet && now>(hero.ripple||0)){hero.ripple=now+240;puff(nx,ny+.03,nz,.05,.07,.6);}
       for(const spot of spots) {
         const here=Math.hypot(nx-spot.x,nz-spot.z)<spot.r;
         if(here && !spot.in)found(spot.id);
@@ -1134,24 +1358,27 @@ async function start() {
     }
     if(!moving)lean+=(0-lean)*Math.min(1,dt*8);
     const swing=moving?Math.sin(hero.phase):0;
-    hero.root.position.set(hero.x,hero.y,hero.z);hero.root.rotation.y=hero.heading;
-    hero.body.position.y=moving?Math.abs(Math.cos(hero.phase))*(.006+lean*.006):0;hero.body.rotation.z=swing*.09;hero.body.rotation.x=lean*.26;
+    hero.root.position.set(hero.x,hero.y-(hero.wet?.045-Math.sin(now/260)*.004:0),hero.z);hero.root.rotation.y=hero.heading;
+    hero.body.position.y=moving && !hero.wet?Math.abs(Math.cos(hero.phase))*(.006+lean*.006):0;hero.body.rotation.z=swing*.09;hero.body.rotation.x=lean*.26+(hero.wet && moving?.32:0);
     hero.feet[0].position.z=.006+swing*.016;hero.feet[1].position.z=.006-swing*.016;
     hero.feet[0].position.y=Math.max(0,swing)*.008;hero.feet[1].position.y=Math.max(0,-swing)*.008;
+    showActs();
   }
-  startWalk=()=>{
+  startWalk=at=>{
+    if(!at || at.x===undefined)at=null;
     if(!atlas)return;                            // name tags (and so the roster) are not ready yet
     if(!grid)buildGrid();
     if(!hero)buildHero();
     dress(me);
-    const shop=active?.detail ? active : null;
+    const shop=!at && active?.detail ? active : null;
     const approach=shop?.reverse ? -1 : 1;
-    let [x,z]=shop ? [shop.point[0],shop.point[2]+approach*.26] : me ? me.g : [0,6.2];
+    let [x,z]=at ? [at.x,at.z] : shop ? [shop.point[0],shop.point[2]+approach*.26] : me ? me.g : [0,6.2];
     if(blocked(x,z)) search: for(let r=1;r<40;r++)for(let i=0;i<16;i++) {  // nearest clear spot
       const t=i/16*Math.PI*2,tx=x+Math.cos(t)*r*CELL,tz=z+Math.sin(t)*r*CELL;
       if(!blocked(tx,tz)){x=tx;z=tz;break search;}
     }
-    hero.x=x;hero.z=z;hero.y=groundAt(x,z);hero.heading=shop ? (shop.reverse ? 0 : Math.PI) : me ? me.face : Math.PI;hero.phase=0;
+    hero.x=x;hero.z=z;hero.y=groundAt(x,z);hero.heading=at ? at.face : shop ? (shop.reverse ? 0 : Math.PI) : me ? me.face : Math.PI;hero.phase=0;
+    ride=null;hero.wet=!!poolAt(x,z);hero.root.rotation.set(0,0,0);swings[0].rotation.x=0;homeLook();$('acts').prepend($('play'));
     hero.root.visible=hero.tag.visible=true;
     atMarket=inMarket(x,z);nearStall=stallAt(x,z);
     walking=true;person=null;active=null;street=false;stickX=stickY=0;for(const k in keys)keys[k]=false;
@@ -1165,14 +1392,16 @@ async function start() {
     // Residents are met from the street with their house behind them; in the narrow lanes the camera
     // looks along the lane from above the roofs. Visitors are followed from behind, towards the arch.
     const lane=me && (me.kind==='terrace' || me.kind==='semi'),reach=Math.min(1.35,Math.max(1,.78/camera.aspect));
-    if(shop) fly(new T.Vector3(x,hero.y+.09,z),.78*reach,shop.angle,1.14,38);
+    // A frontage stall has the shophouses just behind the walker: look down over their roof, not from inside them.
+    if(shop) fly(new T.Vector3(x,hero.y+.09,z),.78*reach,shop.angle,!shop.reverse && shop.point[2]<3.3 && shop.point[0]<5.95?.5:1.14,38);
+    else if(at) fly(new T.Vector3(x,hero.y+.09,z),1.25*reach,0,1.0,38);
     else if(!me) fly(new T.Vector3(x,hero.y+.09,z),1.45*reach,0,1.22,38);
     else if(lane) fly(new T.Vector3(x,hero.y+.09,z),1.5*reach,hero.heading+Math.PI/2,.86,38);
     else fly(new T.Vector3(x,hero.y+.09,z),1.35*reach,hero.heading+.35,1.16,38);
   };
   stopWalk=()=>{
     if(!walking)return;
-    walking=false;moving=false;hero.root.visible=hero.tag.visible=false;playButton();runLock=false;runDown=0;runState();
+    walking=false;moving=false;hero.root.visible=hero.tag.visible=false;ride=null;swings[0].rotation.x=0;showActs();$('stick').before($('play'));playButton();runLock=false;runDown=0;runState();
     document.body.classList.remove('walking');$('walk').setAttribute('aria-pressed','false');$('walk-label').textContent='Walk';
     $('view-name').textContent='Town overview';wake();
   };

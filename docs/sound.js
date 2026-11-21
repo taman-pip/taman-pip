@@ -128,6 +128,8 @@ export const sound = {
   bad() { if (ready()) note(ctx.currentTime, 130, .28, .18, 'sawtooth'); },
   fanfare() { if (ready()) [0, 4, 7, 12, 7, 12, 16].forEach((n, i) => { note(ctx.currentTime + i * .13, hz(n + 12), i === 6 ? .7 : .16, .16); note(ctx.currentTime + i * .13, hz(n), .2, .08, 'sine'); }); },
   over() { if (ready()) { note(ctx.currentTime, 520, .14, .2); note(ctx.currentTime + .14, 390, .16, .2); note(ctx.currentTime + .3, 260, .3, .2); } },
+  bell() { if (ready()) { note(ctx.currentTime, 988, .5, .22, 'sine'); note(ctx.currentTime + .32, 784, .8, .22, 'sine'); } },
+  splash(big) { if (ready()) { const at = ctx.currentTime; burst(at, big ? .9 : .45, 'bandpass', 1400, big ? .4 : .2, .5, .01); burst(at + .05, big ? 1.1 : .5, 'highpass', 3800, big ? .2 : .1, .6, .05); if (big) note(at, 90, .2, .4, 'sine'); } },
   step() { if (ready()) burst(ctx.currentTime, .035, 'bandpass', 900 + Math.random() * 300, .05, 2); },
   // The roadster: a rising and falling hum with rushing air for the whole flight, then a hiss of vapour on landing.
   fly(seconds) {

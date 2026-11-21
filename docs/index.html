@@ -12,12 +12,12 @@
   <meta property="og:image" content="https://taman-pip.github.io/taman-pip/assets/town-map.webp">
   <title>Taman Pip · Town explorer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='12' fill='%23254e3b'/%3E%3Cpath d='m7 25 10-10 8 8 6-6 10 10H7' fill='%23f4d47f'/%3E%3Cpath d='M10 28h29v8H10z' fill='%23f7f1d9'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="./style.css?v=202611212302">
+  <link rel="stylesheet" href="./style.css?v=202611212331">
   <link rel="modulepreload" href="./assets/engine.js">
   <link rel="preload" href="./assets/town.glb" as="fetch" crossorigin>
   <link rel="preload" href="./assets/residents.json" as="fetch" crossorigin>
   <link rel="preload" href="./assets/dm-sans.woff2" as="font" type="font/woff2" crossorigin>
-  <script type="module" src="./explore.js?v=202611212302"></script>
+  <script type="module" src="./explore.js?v=202611212331"></script>
 </head>
 <body>
 <svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
@@ -70,6 +70,8 @@
       <div class="zoom"><button id="zoom-in" aria-label="Zoom in" title="Zoom in"><svg><use href="#i-plus"/></svg></button><button id="zoom-out" aria-label="Zoom out" title="Zoom out"><svg><use href="#i-minus"/></svg></button><button id="reset" aria-label="Reset town view" title="Reset town view"><svg><use href="#i-reset"/></svg></button></div>
     </div>
     <button id="play" class="play" hidden><svg><use href="#i-play"/></svg><span id="play-name">Play</span></button>
+    <button id="todo"><span aria-hidden="true">✦</span> Things to do</button>
+    <div id="acts"><div id="act-list"></div></div>
     <div id="stick" aria-hidden="true"><span id="stick-knob"></span></div>
     <button id="run" aria-pressed="false" aria-label="Run"><svg><use href="#i-run"/></svg><span>Run</span></button>
     <p id="walk-hint">W A S D to walk · Shift to run · Drag to look around</p>
@@ -83,7 +85,7 @@
   <aside id="directory" aria-label="Town directory">
     <div class="directory-top"><div class="directory-title"><h1>Town directory</h1><button id="close-places" class="plain" aria-label="Close directory"><svg><use href="#i-close"/></svg></button></div>
       <label class="search"><svg><use href="#i-search"/></svg><input id="search" type="search" placeholder="Find a place or @username" aria-label="Find a place or username" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="search"></label>
-      <div class="tabs" role="tablist" aria-label="Directory"><button id="tab-people" role="tab" aria-selected="true">Neighbours <span id="count-people"></span></button><button id="tab-places" role="tab" aria-selected="false">Places <span id="count-places"></span></button><button id="tab-games" role="tab" aria-selected="false">Games <span id="count-games"></span></button></div>
+      <div class="tabs" role="tablist" aria-label="Directory"><button id="tab-people" role="tab" aria-selected="true">Neighbours <span id="count-people"></span></button><button id="tab-places" role="tab" aria-selected="false">Places <span id="count-places"></span></button><button id="tab-games" role="tab" aria-selected="false">To do <span id="count-games"></span></button></div>
     </div>
     <nav id="places" aria-label="Places to visit"></nav>
     <div class="directory-foot">
@@ -98,7 +100,7 @@
     <dt>Find a house</dt><dd>Search a username, or tap a name tag on a roof.</dd>
     <dt>Walk</dt><dd>Tap Walk and steer with the stick or W A S D. Hold Run or Shift to run.</dd>
     <dt>Explore as a neighbour</dt><dd>Open a house and choose Explore as. You start at that gate, and Share gives a link to the house.</dd>
-    <dt>Stall games</dt><dd>Four stalls at the Pasar Malam have a game. Open the stall, or walk up to it, to play.</dd>
+    <dt>Things to do</dt><dd>Gold stars mark them: stall games, the mansion pools, the playground. Walk up and a button appears. At a gate you can ring the bell, and at your own, switch on the porch light or water the plants.</dd>
     <dt>Easter eggs <span id="egg-count"></span></dt><dd>Eight things from the films are hidden in town. <button id="guide-album" class="text-link">Open the album</button> for hints.</dd>
     <dt>Sound</dt><dd>Music starts on your first tap. The speaker button turns it off. The “hus hus hus” is by @thedrizzleshow, used with permission.</dd>
   </dl>

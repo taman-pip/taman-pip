@@ -214,3 +214,14 @@ button.tile:hover{background:#e9eee1}
 /* The phone directory sheet takes most of the screen, so the list is easy to scroll. */
 @media(max-width:760px) and (min-height:501px){#directory{height:84dvh}}
 
+#acts{position:absolute;left:50%;bottom:132px;transform:translateX(-50%);display:none;flex-direction:column-reverse;align-items:center;gap:8px;z-index:3;pointer-events:none}
+.walking #acts{display:flex}#act-list{display:flex;flex-direction:column;align-items:center;gap:8px}#acts button{pointer-events:auto}#acts .play{position:static}
+.act{height:46px;padding:0 20px;border-radius:24px;background:#f4ce70;color:#2b3a1e;border:1px solid #b98f2c;font-size:15px;font-weight:700;box-shadow:0 4px 14px #1f3d2b40;white-space:nowrap;animation:act-in .18s ease-out}
+.act:active{background:#e9bd52}@keyframes act-in{from{transform:scale(.8);opacity:0}}
+#todo{display:none}
+@media(max-width:760px),(max-height:500px){
+  #acts{bottom:calc(164px + env(safe-area-inset-bottom))}
+  #todo{position:absolute;left:12px;top:56px;display:flex;align-items:center;gap:6px;height:38px;padding:0 14px 0 11px;border-radius:20px;background:#f4ce70;color:#2b3a1e;border:1px solid #b98f2c;font-size:13.5px;font-weight:700;box-shadow:0 3px 10px #1f3d2b30;z-index:2}
+  .has-card #todo,#todo.away{display:none}
+}
+@media(max-height:500px){#acts{bottom:calc(14px + env(safe-area-inset-bottom));flex-direction:row-reverse}#act-list{flex-direction:row}}
