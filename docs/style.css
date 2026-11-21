@@ -18,3 +18,47 @@
 @media(pointer:coarse){.touch-tip{display:inline}.pointer-tip{display:none}}
 @media(max-width:1030px){#gesture-hint{bottom:83px}}
 @media(max-height:480px){#gesture-hint{display:none}}
+/* Residents: tabs, people rows, the house card, the visitor's own chip */
+[hidden]{display:none!important}
+html,body{overscroll-behavior:none}
+.topbar,.map-area,.tabs,.place{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+button.population:hover{background:#dfe8d2}
+.me-chip{display:flex;align-items:center;gap:7px;max-width:210px;border-radius:30px;padding:7px 13px 7px 11px;background:var(--forest);color:#fff;font-size:14px;font-weight:650}
+.me-chip svg{width:16px;height:16px}.me-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.me-chip:hover{background:#234532}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-top:12px;padding:3px;border-radius:11px;background:#eceee3}
+.tabs button{height:36px;border-radius:8px;font-size:14px;font-weight:650;color:var(--muted)}
+.tabs button span{font-weight:500;opacity:.75;margin-left:2px}
+.tabs button[aria-selected=true]{background:var(--paper);color:var(--ink);box-shadow:0 1px 3px #2a513522}
+.group{position:sticky;top:0;z-index:1;margin:0;padding:10px 8px 5px;background:var(--paper);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.lot{flex:none;display:grid;place-items:center;min-width:52px;height:34px;padding:0 7px;border-radius:8px;font-size:12.5px;font-weight:750;letter-spacing:.02em;font-variant-numeric:tabular-nums;color:#fff;background:var(--tone,#58695f)}
+.place.person{padding:7px 8px;gap:12px;min-height:50px}
+.place span:last-child{min-width:0}.place strong,.place small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pin.home{background:var(--forest);color:#fff;border-color:#1c3a2a;z-index:1}.pin.home::before{background:#f4ce70}
+.pin.home.mine{background:#f4ce70;color:#2b3a1e;border-color:#b98f2c}.pin.home.mine::before{background:var(--forest)}
+#card{position:absolute;left:22px;bottom:84px;width:min(350px,calc(100% - 44px));padding:14px 14px 12px;border:1px solid #c4cebd;border-radius:16px;background:var(--paper);box-shadow:0 6px 24px #1f3d2b2e;z-index:3;-webkit-user-select:text;user-select:text}
+.card-head{display:flex;align-items:center;gap:12px}.card-head .lot{height:44px;min-width:58px;font-size:14px;border-radius:10px}
+.card-who{flex:1;min-width:0;display:grid}.card-who small{font-size:12px;font-weight:650;color:var(--muted)}
+.card-who strong{font-size:18px;line-height:1.25;letter-spacing:-.2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-who span{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#card-close{width:40px;height:40px;margin:-6px -6px 0 0;align-self:start;flex:none}
+#card-next{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:11px 0 0;font-size:13px;color:var(--muted)}
+#card-next button{padding:5px 10px;border-radius:20px;border:1px solid var(--line);background:#f4f5ed;font-size:13px;font-weight:600;color:var(--ink)}
+#card-next button:hover{background:#e7eedf}
+.card-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.card-actions button{display:flex;align-items:center;justify-content:center;gap:7px;height:42px;padding:0 13px;border-radius:10px;border:1px solid #c4cebd;font-size:14px;font-weight:650;white-space:nowrap}
+.card-actions button:hover{background:#eaf0e4}.card-actions svg{width:17px;height:17px}
+.card-actions #card-as{flex:1 1 100%;min-width:0}.card-actions #card-as span{overflow:hidden;text-overflow:ellipsis}
+.card-actions #card-street,.card-actions #card-share{flex:1}
+.card-actions .primary{background:var(--forest);border-color:var(--forest);color:#fff}.card-actions .primary:hover{background:#234532}
+.has-card #gesture-hint{display:none}
+@media(max-width:760px),(max-height:500px){
+  .has-me .population{display:none}.me-chip{max-width:44vw;font-size:13px;padding:7px 11px 7px 9px}
+  .tabs button{height:40px}.place.person{min-height:52px}
+  #card{left:10px;right:10px;width:auto;bottom:calc(74px + env(safe-area-inset-bottom));padding:12px 12px 10px}
+  .card-actions button{height:44px}
+  .has-card .map-label{display:none}
+}
+@media(max-height:500px){#card{right:auto;width:min(340px,60%);bottom:calc(72px + env(safe-area-inset-bottom))}#card-next{display:none}.card-actions #card-as{flex:1 1 100%}}
+@media(max-width:350px){.population svg{display:none}.brand{font-size:22px}}
+.brand span{white-space:nowrap}
+@media(max-width:350px){.me-chip{max-width:36vw}.topbar{gap:6px}}

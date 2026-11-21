@@ -4,10 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#244e3b">
-  <meta name="description" content="Explore Taman Pip in 3D, from the pasar malam to the terrace houses.">
+  <meta name="description" content="Explore Taman Pip in 3D. Find your house, see who lives next door, and walk the town as any neighbour.">
+  <meta property="og:title" content="Taman Pip · Town explorer">
+  <meta property="og:description" content="Find your house in Taman Pip and see who lives next door.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://taman-pip.github.io/taman-pip/">
+  <meta property="og:image" content="https://taman-pip.github.io/taman-pip/assets/town-map.webp">
   <title>Taman Pip · Town explorer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='12' fill='%23254e3b'/%3E%3Cpath d='m7 25 10-10 8 8 6-6 10 10H7' fill='%23f4d47f'/%3E%3Cpath d='M10 28h29v8H10z' fill='%23f7f1d9'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="./style.css">
+  <link rel="modulepreload" href="./assets/engine.js">
+  <link rel="preload" href="./assets/town.glb" as="fetch" crossorigin>
+  <link rel="preload" href="./assets/residents.json" as="fetch" crossorigin>
+  <link rel="preload" href="./assets/dm-sans.woff2" as="font" type="font/woff2" crossorigin>
   <script type="module" src="./explore.js"></script>
 </head>
 <body>
@@ -23,6 +32,9 @@
   <symbol id="i-build" viewBox="0 0 24 24"><path d="M4 21h16M7 21V4h9v17m-6-13h.1m3 0h.1M10 12h.1m3 0h.1M10 16h.1m3 0h.1"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></symbol>
   <symbol id="i-orbit" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-30 12 12)"/><circle cx="12" cy="12" r="2"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 11 9-8 9 8M5 9.5V21h14V9.5M10 21v-6h4v6"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V3m0 0L8 7m4-4 4 4M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7"/></symbol>
   <symbol id="i-hand" viewBox="0 0 24 24"><path d="M8 12V6a1.5 1.5 0 0 1 3 0v5-7a1.5 1.5 0 0 1 3 0v7-5a1.5 1.5 0 0 1 3 0v6-3a1.5 1.5 0 0 1 3 0v6c0 5-3 7-7 7-3 0-5-2-7-5l-3-4a1.5 1.5 0 0 1 2-2l3 2z"/></symbol>
 </defs></svg>
 <header class="topbar">
@@ -31,12 +43,12 @@
     <span>Taman Pip</span>
   </a>
   <span class="header-rule"></span><span class="app-name">Town explorer</span>
-  <div class="header-end"><span class="population"><svg><use href="#i-people"/></svg>64 neighbours</span>
+  <div class="header-end"><button id="me" class="me-chip" hidden title="Go to my house"><svg><use href="#i-home"/></svg><span id="me-name"></span></button><button id="population" class="population" title="See all neighbours"><svg><use href="#i-people"/></svg><span id="population-count">64 neighbours</span></button>
   <button id="help" class="plain" aria-label="How to explore" title="How to explore"><svg><use href="#i-help"/></svg></button></div>
 </header>
 <main class="workspace">
   <section class="map-area" aria-label="Interactive 3D town">
-    <div id="viewport" tabindex="0" aria-label="3D town. Drag to rotate, pinch or scroll to zoom. Arrow keys pan, plus and minus zoom, Home resets."></div>
+    <div id="viewport" tabindex="0" role="application" aria-label="3D town. Drag to rotate, pinch or scroll to zoom. Arrow keys pan, plus and minus zoom, Home resets."></div>
     <div class="map-label"><svg><use href="#i-map"/></svg><span id="view-name">Town overview</span></div>
     <button id="compass" class="compass" title="Face north" aria-label="Face north"><span>N</span><span id="needle"></span></button>
     <div id="pins"></div>
@@ -46,19 +58,25 @@
       <div class="modes" aria-label="Drag mode"><button id="orbit" aria-pressed="true"><svg><use href="#i-orbit"/></svg><span>Orbit</span></button><button id="pan" aria-pressed="false"><svg><use href="#i-hand"/></svg><span>Pan</span></button></div>
       <div class="zoom"><button id="zoom-in" aria-label="Zoom in" title="Zoom in"><svg><use href="#i-plus"/></svg></button><button id="zoom-out" aria-label="Zoom out" title="Zoom out"><svg><use href="#i-minus"/></svg></button><button id="reset" aria-label="Reset town view" title="Reset town view"><svg><use href="#i-reset"/></svg></button></div>
     </div>
-    <button id="open-places" aria-expanded="false" aria-controls="directory"><svg><use href="#i-map"/></svg>Places</button>
+    <button id="open-places" aria-expanded="false" aria-controls="directory"><svg><use href="#i-search"/></svg>Find a house</button>
+    <section id="card" aria-live="polite" hidden>
+      <div class="card-head"><span id="card-lot" class="lot"></span><div class="card-who"><small id="card-eyebrow"></small><strong id="card-name"></strong><span id="card-where"></span></div><button id="card-close" class="plain" aria-label="Close"><svg><use href="#i-close"/></svg></button></div>
+      <p id="card-next"></p>
+      <div class="card-actions"><button id="card-as" class="primary"><svg><use href="#i-home"/></svg><span></span></button><button id="card-street"><svg><use href="#i-eye"/></svg><span>Street view</span></button><button id="card-share" aria-label="Share this house" title="Share this house"><svg><use href="#i-share"/></svg><span>Share</span></button></div>
+    </section>
   </section>
   <button id="scrim" aria-label="Close directory" hidden></button>
   <aside id="directory" aria-label="Town directory">
     <div class="directory-top"><div class="directory-title"><h1>Town directory</h1><button id="close-places" class="plain" aria-label="Close directory"><svg><use href="#i-close"/></svg></button></div>
-      <label class="search"><svg><use href="#i-search"/></svg><input id="search" type="search" placeholder="Find a place" aria-label="Find a place"></label>
+      <label class="search"><svg><use href="#i-search"/></svg><input id="search" type="search" placeholder="Find a place or @username" aria-label="Find a place or username" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="search"></label>
+      <div class="tabs" role="tablist" aria-label="Directory"><button id="tab-people" role="tab" aria-selected="true">Neighbours <span id="count-people"></span></button><button id="tab-places" role="tab" aria-selected="false">Places <span id="count-places"></span></button></div>
     </div>
     <nav id="places" aria-label="Places to visit"></nav>
-    <div class="milestone"><div class="milestone-icon"><svg><use href="#i-build"/></svg></div><div><h2>Next up: the condo</h2><p>57 more apartments to fill.</p></div></div>
+    <div class="milestone"><div class="milestone-icon"><svg><use href="#i-build"/></svg></div><div><h2>Next up: the condo</h2><p id="milestone-text">57 more apartments to fill.</p></div></div>
   </aside>
 </main>
 <dialog id="guide"><div class="directory-title"><h2>How to explore</h2><button id="close-help" class="plain" aria-label="Close help"><svg><use href="#i-close"/></svg></button></div>
-  <dl><dt>Rotate</dt><dd>Drag with one finger or your mouse.</dd><dt>Zoom</dt><dd>Pinch, scroll, or use the + and − buttons.</dd><dt>Move around</dt><dd>Slide two fingers or choose Pan and drag.</dd><dt>Visit a place</dt><dd>Select a map pin or a place in the directory.</dd><dt>Keyboard</dt><dd>Focus the map. Arrow keys pan, + and − zoom, and Home returns to the overview.</dd></dl>
+  <dl><dt>Rotate</dt><dd>Drag with one finger or your mouse.</dd><dt>Zoom</dt><dd>Pinch, scroll, or use the + and − buttons.</dd><dt>Move around</dt><dd>Slide two fingers or choose Pan and drag.</dd><dt>Find a house</dt><dd>Search a username, or tap a name tag on a roof.</dd><dt>Explore as a neighbour</dt><dd>Open a house and choose Explore as. The town remembers you, and Share gives you a link to your house.</dd><dt>Visit a place</dt><dd>Select a map pin or a place in the directory.</dd><dt>Keyboard</dt><dd>Focus the map. Arrow keys pan, + and − zoom, and Home returns to the overview.</dd></dl>
 </dialog>
 <noscript><p class="noscript">Turn on JavaScript to explore Taman Pip in 3D.</p></noscript>
 </body></html>
