@@ -9,8 +9,8 @@
   {"id":"spam-balik","name":"Spam Balik Pipchun","owner":"awesomianist","pitch":"SPAM BALIK PIPCHUN","point":[8.64,0.18,4.36],"reverse":true},
   {"id":"air-balang","name":"Air Balang","owner":"alynkburp","point":[5.48,0.17,2.32],"reverse":true,"sign":[0,0.055,0.079,0.30],"distance":0.65,"keywords":"minuman balang drinks"},
   {"id":"gepuk-pipchun","name":"Ayam Gepuk Pipchun","owner":"limmegann","point":[5.45,0.17,2.72],"distance":0.50,"angle":0.42,"tilt":1.36,"fov":53},
-  {"id":"fried-rice","name":"Chinese Fried Rice","owner":"i.am.blue.balls","point":[4.94,0.208,2.93],"distance":0.50,"tilt":1.37,"angle":-0.36,"fov":55,"keywords":"nasi goreng wok"},
-  {"id":"ramly","name":"Ramly Burger","type":"Vacant pitch","point":[6.02,0.18,2.94]},
+  {"id":"fried-rice","name":"Chinese Fried Rice","owner":"i.am.blue.balls","point":[4.94,0.208,3.19],"reverse":true,"sign":[0,0.0775,0.068,0.31],"banner":["CHINESE FRIED RICE","#3d6860",0.274,0.0895,0.468,0.050],"distance":0.42,"tilt":1.2,"angle":2.9,"fov":55,"keywords":"nasi goreng wok"},
+  {"id":"ramly","name":"Ramly Burger","type":"Vacant pitch","point":[6.10,0.18,3.04],"board":["PASAR MALAM  •  TAMAN PIP","BURGER RAMLY","TAPAK PENJAJA",0.0685,0.157,0.31,0.081]},
   {"id":"mamak","name":"Mamak","owner":"yeemasontyrell1","type":"Shophouse C3","point":[2.475,0.32,4.25],"distance":1.14},
   {"id":"clinic","name":"Klinik","owner":"yeeman31","type":"Shophouse C7","point":[4.575,0.32,4.25],"distance":1.14,"keywords":"clinic"}
 ]

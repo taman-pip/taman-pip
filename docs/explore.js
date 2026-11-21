@@ -1,5 +1,5 @@
-import { games, openGames } from './games.js?v=202611211600';
-import { sound } from './sound.js?v=202611211600';
+import { games, openGames } from './games.js?v=202611211617';
+import { sound } from './sound.js?v=202611211617';
 const places = [
   { id: 'market', name: 'Pasar Malam', type: 'Night market', tone: '#bb6845', point: [6.58, .14, 3.14], distance: 4.5, angle: .35, tilt: .91 },
   { id: 'gate', name: 'Town entrance', type: 'Welcome arch', tone: '#658052', point: [0, .15, 5.75], distance: 1.95, angle: .20, tilt: 1.22 },
@@ -91,8 +91,36 @@ function found(id) {
   eggsFound[id] = Date.now(); saveEggs();
   $('egg-from').textContent = egg.from; $('egg-line').textContent = egg.line; $('egg-note').textContent = egg.note;
   $('egg-tally').textContent = (fresh ? 'Easter egg found · ' : 'Found before · ') + eggTally() + ' of ' + eggTotal + ' · tap to see them all';
+  const all = eggTally() === eggTotal;
+  if (all) $('egg-tally').textContent = 'All ' + eggTotal + ' easter eggs found! · tap to see them all';
   $('egg').hidden = false; eggCount(); sound.great();
-  clearTimeout(eggTimer); eggTimer = setTimeout(() => { $('egg').hidden = true; }, 7000);
+  if (all) { confetti(); setTimeout(() => sound.fanfare(), 350); }
+  clearTimeout(eggTimer); eggTimer = setTimeout(() => { $('egg').hidden = true; }, all ? 11000 : 7000);
+}
+// The whole album collected: paper confetti over the town for a few seconds.
+function confetti() {
+  if (reducedMotion.matches || document.querySelector('.confetti')) return;
+  const sheet = document.createElement('canvas'), g = sheet.getContext('2d'), ratio = Math.min(devicePixelRatio || 1, 2);
+  sheet.className = 'confetti'; document.body.append(sheet);
+  const w = innerWidth, h = innerHeight; sheet.width = w * ratio; sheet.height = h * ratio; g.scale(ratio, ratio);
+  const tones = ['#f4ce70', '#bb6845', '#2a523c', '#7a2e35', '#77869c', '#fbf3e2', '#5d897b'];
+  const bits = Array.from({length: Math.min(220, Math.round(w / 4) + 90)}, (_, i) => ({
+    x: Math.random() * w, y: -20 - Math.random() * h * .9, vx: (Math.random() - .5) * 90, vy: 130 + Math.random() * 190,
+    size: 6 + Math.random() * 7, turn: Math.random() * 7, rate: (Math.random() - .5) * 9, sway: Math.random() * 7, tone: tones[i % tones.length], round: i % 5 === 0 }));
+  const began = performance.now(); let last = began;
+  const frame = now => {
+    const dt = Math.min(.05, (now - last) / 1000), age = (now - began) / 1000; last = now;
+    g.clearRect(0, 0, w, h); g.globalAlpha = Math.max(0, Math.min(1, 7 - age));
+    for (const o of bits) {
+      o.x += (o.vx + Math.sin(age * 2 + o.sway) * 40) * dt; o.y += o.vy * dt; o.turn += o.rate * dt;
+      if (o.y > h + 20 && age < 4.5) { o.y = -20; o.x = Math.random() * w; }
+      g.save(); g.translate(o.x, o.y); g.rotate(o.turn); g.scale(1, Math.cos(o.turn * 1.7)); g.fillStyle = o.tone;
+      if (o.round) { g.beginPath(); g.arc(0, 0, o.size * .45, 0, 7); g.fill(); } else g.fillRect(-o.size / 2, -o.size * .3, o.size, o.size * .6);
+      g.restore();
+    }
+    if (age < 7) requestAnimationFrame(frame); else sheet.remove();
+  };
+  requestAnimationFrame(frame);
 }
 function openAlbum() { album(); if ($('guide').open) $('guide').close(); if (!$('album').open) $('album').showModal(); }
 $('egg').onclick = () => { $('egg').hidden = true; openAlbum(); };
@@ -546,6 +574,7 @@ async function start() {
       const s=T.MathUtils.clamp(camera.position.distanceTo(tag.at)*.052,.30,.50);
       tag.mesh.scale.set(s,s,1);tag.mesh.position.copy(tag.at);tag.mesh.position.y+=s*.15+.015;
       tag.mesh.quaternion.copy(camera.quaternion);
+      if(tag.shop)tag.mesh.visible=active!==tag.shop && camera.position.distanceTo(tag.at)>1.7;   // up close the counter plate and the pin say it
     }
     renderer.render(scene,camera);
     for (const pin of homePins) {
@@ -596,6 +625,7 @@ async function start() {
     if(skyTap(px,py,rect) || walking || !tags.length)return;
     let best=null,reach=1e9;
     for (const tag of tags) {
+      if(!tag.mesh.visible)continue;
       point.copy(tag.mesh.position).project(camera);
       if(point.z>1||point.z<-1)continue;
       const half=tag.mesh.scale.x*rect.height/(2*Math.tan(camera.fov*Math.PI/360)*camera.position.distanceTo(tag.mesh.position))/2;
@@ -603,7 +633,7 @@ async function start() {
       const miss=Math.hypot(Math.max(0,dx-half),dy);
       if(miss<Math.max(16,half*.5) && miss+dx*.01<reach){reach=miss+dx*.01;best=tag;}
     }
-    if(best)visit(best.who);
+    if(best){if(best.shop)choose(best.shop);else visit(best.who);}
   });renderer.domElement.addEventListener('pointercancel',()=>{dragStart=null;});
   renderer.domElement.addEventListener('wheel',()=>{atHome=false;},{passive:true});
   renderer.domElement.addEventListener('dblclick',e=>{
@@ -661,7 +691,7 @@ async function start() {
   }
   new ResizeObserver(resize).observe(view);resize();
   const loader=new T.GLTFLoader().setMeshoptDecoder(T.MeshoptDecoder);
-  asset=await loader.loadAsync('./assets/town.glb?v=ep3-food',e=>{
+  asset=await loader.loadAsync('./assets/town.glb?v=ep3-aisle',e=>{
     if(e.lengthComputable && e.total)$('map-status').textContent='Loading the town\u2026 '+Math.round(e.loaded/e.total*100)+'%';
   });
   asset.scene.traverse(o=>{
@@ -993,6 +1023,28 @@ async function start() {
     // The owner's handle on the front of each market pitch, drawn here so it stays sharp (3D lettering this
     // small does not survive the model's compression). `sign` in the catalogue places one by hand.
     for(const shop of places){
+      if(!shop.banner)continue;                      // the name on a tent's valance, white on its canvas
+      const [text,tone,dy,dz,width,height]=shop.banner,plate=document.createElement('canvas');plate.width=1024;plate.height=Math.round(1024*height/width);
+      const p=plate.getContext('2d'),h=plate.height;p.textAlign='center';p.textBaseline='middle';
+      p.fillStyle=tone;p.fillRect(0,0,1024,h);p.fillStyle='#f4efe2';
+      let size=h*.74;do{p.font='700 '+size+'px "DM Sans",Arial,sans-serif';size-=2;}while(p.measureText(text).width>940 && size>20);
+      p.fillText(text,512,h*.54);
+      const picture=new T.CanvasTexture(plate);picture.colorSpace=T.SRGBColorSpace;picture.anisotropy=8;
+      const way=shop.reverse?-1:1,board=new T.Mesh(new T.PlaneGeometry(width,height),new T.MeshBasicMaterial({map:picture,color:0xc9c5bb}));
+      board.position.set(shop.point[0],dy,shop.point[2]+dz*way);board.rotation.y=shop.reverse?Math.PI:0;scene.add(board);
+    }
+    for(const shop of places){
+      if(!shop.board)continue;                       // a painted signboard, redrawn for the same reason
+      const [small,big,foot,dy,dz,width,height]=shop.board,plate=document.createElement('canvas');plate.width=768;plate.height=Math.round(768*height/width);
+      const p=plate.getContext('2d'),h=plate.height;p.textAlign='center';p.textBaseline='middle';
+      p.fillStyle='#8a2a26';p.fillRect(0,0,768,h);p.fillStyle='#f7e6bf';
+      p.font='600 26px "DM Sans",Arial,sans-serif';p.letterSpacing='3px';p.fillText(small,384,h*.19);p.fillText(foot,384,h*.84);
+      p.font='700 78px "DM Sans",Arial,sans-serif';p.letterSpacing='2px';p.fillText(big,384,h*.52);
+      const picture=new T.CanvasTexture(plate);picture.colorSpace=T.SRGBColorSpace;picture.anisotropy=8;
+      const board=new T.Mesh(new T.PlaneGeometry(width,height),new T.MeshBasicMaterial({map:picture,color:0xd8d2c6}));
+      board.position.set(shop.point[0],dy,shop.point[2]+dz);scene.add(board);
+    }
+    for(const shop of places){
       if(!shop.owner || !(shop.pitch || shop.sign))continue;
       const plate=document.createElement('canvas');plate.width=640;plate.height=96;
       const p=plate.getContext('2d');p.textAlign='center';p.textBaseline='middle';
@@ -1010,6 +1062,15 @@ async function start() {
       const mesh=new T.Mesh(shape,material);scene.add(mesh);
       tags.push({who:o,mesh,at:new T.Vector3(...o.p)});
     });
+    // Whoever runs a shop or a market pitch has their name over it too; tapping it opens the place.
+    for(const shop of places){
+      const owner=shop.owner && list.find(o=>o.u===shop.owner);
+      if(!owner || owner.kind==='stall')continue;       // the fried rice seller's own tag is already over the stall
+      const shape=new T.PlaneGeometry(1,.3);cellUV(shape,list.indexOf(owner));
+      const mesh=new T.Mesh(shape,material);scene.add(mesh);
+      const [x,,z]=shop.point;
+      tags.push({who:owner,shop,mesh,at:new T.Vector3(x,shop.roof||(shop.pitch?.345:.40),z)});
+    }
     document.body.dataset.tags='ready';
     if(person)showPerson();else wake();
   });

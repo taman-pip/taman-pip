@@ -207,3 +207,12 @@ button.tile:hover{background:#e9eee1}
 
 /* A market pitch's pin also names its owner. */
 .pin small{font-size:11px;font-weight:500;opacity:.7;margin-left:2px}
+
+/* Every easter egg found. */
+.confetti{position:fixed;inset:0;width:100%;height:100%;z-index:60;pointer-events:none}
+
+/* The phone directory sheet takes most of the screen, so the list is easy to scroll. */
+@media(max-width:760px) and (min-height:501px){#directory{height:84dvh}}
+
+/* Browsers keep a page silent until it is tapped. */
+.sound-note{position:fixed;left:50%;bottom:calc(82px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:5;padding:7px 13px;border-radius:99px;background:#213f31e6;color:#fbf3e2;font-size:13px;font-weight:600;white-space:nowrap;pointer-events:none;animation:egg-in .28s ease-out}

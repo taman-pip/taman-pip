@@ -7,7 +7,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * clamp(t, 0, 1)));
 const rgb = c => 'rgb(' + c.join(',') + ')';
 
-import { sound } from './sound.js?v=202611211600';
+import { sound } from './sound.js?v=202611211617';
 const sfx = sound;
 
 // ---- drawing helpers -------------------------------------------------------
@@ -112,13 +112,18 @@ function special(api) {
   }
   next();
   const wrong = text => { shake = .3; api.penalty(1); sfx.bad(); pops.push({ text: text || '-1s', x: cx, y: 96, t: 0, color: '#ffb4a2', size: 16 }); };
+  // The egg wraps round the patty to its own hus, hus, hus.
+  const wrapEgg = () => {
+    tuck = .01; const mine = order;
+    for (let i = 0; i < 3; i++) setTimeout(() => { if (order !== mine || !tuck) return; sfx.hus(i); pops.push({ text: 'hus', x: W / 2 + (i - 1) * 64, y: 120, t: 0 }); }, i * 200);
+  };
   const hint = () => ({ patty: 'Put a patty on', cook: t < ready ? 'Wait for the green ring…' : 'Flip it now', egg: 'Crack an egg', cheese: 'Add the cheese',
     wrap: 'Wrap it: hus, hus, hus', sauce: 'Sauce: ' + order.sauces.filter(o => !sauced.includes(o)).join(', '), bun: 'Into the bun' }[stage]);
   function useTray(id) {
     press = { id, t: .18 };
     if (stage === 'patty' && id === 'patty') { stage = 'cook'; t = 0; ready = rand(1.3, 1.9); burn = ready + 1.7; sfx.sizzle(); }
-    else if (stage === 'egg' && id === 'egg') { egg = .01; sfx.sizzle(); stage = order.cheese ? 'cheese' : 'sauce'; if (stage === 'sauce') tuck = .01; }
-    else if (stage === 'cheese' && id === 'cheese') { cheese = true; sfx.good(); stage = 'sauce'; tuck = .01; }
+    else if (stage === 'egg' && id === 'egg') { egg = .01; sfx.sizzle(); stage = order.cheese ? 'cheese' : 'sauce'; if (stage === 'sauce') wrapEgg(); }
+    else if (stage === 'cheese' && id === 'cheese') { cheese = true; sfx.good(); stage = 'sauce'; wrapEgg(); }
     else if (stage === 'sauce' && order.sauces.includes(id) && !sauced.includes(id)) { sauced.push(id); sfx.good(); if (sauced.length === order.sauces.length) stage = 'bun'; }
     else if (stage === 'bun' && id === 'bun') { bunOn = true; sfx.good(); stage = 'wrap'; foldOrder = [...sides].sort(() => Math.random() - .5).slice(0, 3); }
     else wrong(stage === 'sauce' && ['chili', 'mayo', 'pepper'].includes(id) ? 'not on the order' : '-1s');
@@ -146,7 +151,7 @@ function special(api) {
       pulse += dt; shake = Math.max(0, shake - dt); spin = Math.max(0, spin - dt * 4);
       if (press) { press.t -= dt; if (press.t <= 0) press = null; }
       if (egg) egg = Math.min(1, egg + dt * 4);
-      if (tuck) tuck = Math.min(1, tuck + dt * 5);
+      if (tuck) tuck = Math.min(1, tuck + dt * 1.7);
       for (const o of sides) if (folds[o]) folds[o] = Math.min(1, folds[o] + dt * 9);
       if (stage === 'cook') { t += dt; if (t >= burn) { sfx.bad(); api.penalty(2); pops.push({ text: 'burnt! -2s', x: cx, y: 96, t: 0, color: '#ffb4a2', size: 16 }); stage = 'patty'; } }
       if (leave) { leave += dt; if (leave > .55) next(); }

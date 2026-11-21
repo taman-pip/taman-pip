@@ -13,10 +13,10 @@ function ready() {
     hiss = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
     const data = hiss.getChannelData(0); for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
     grill = bed('highpass', 4800, .7); murmur = bed('lowpass', 420, .5);
-    loadClip();
+    loadClip(); ctx.onstatechange = heard;
     if (!timer) timer = setInterval(tick, 90);
   }
-  if (ctx.state === 'suspended') ctx.resume();
+  if (ctx.state !== 'running') ctx.resume().then(heard, () => {}); else heard();   // 'suspended', or 'interrupted' on a phone after a call
   return ctx;
 }
 function bed(kind, frequency, q) {                // a looping wash of filtered noise, silent until asked for
@@ -110,7 +110,7 @@ export const sound = {
   setMuted(value) {
     muted = value;
     try { localStorage.setItem('taman-pip-mute', muted ? '1' : '0'); } catch {}
-    if (muted) ctx?.suspend(); else if (ready()) { due = 0; }
+    if (muted) { ctx?.suspend(); note_?.remove(); note_ = null; } else if (ready()) { due = 0; }
     for (const fn of listeners) fn(muted);
   },
   unlock() { if (ready() && !playing) { playing = true; tune ||= tunes.town; due = 0; hear(); } },
@@ -126,6 +126,7 @@ export const sound = {
   good() { if (ready()) note(ctx.currentTime, 620, .1, .2); },
   great() { if (ready()) { note(ctx.currentTime, 660, .09, .2); note(ctx.currentTime + .08, 990, .14, .2); } },
   bad() { if (ready()) note(ctx.currentTime, 130, .28, .18, 'sawtooth'); },
+  fanfare() { if (ready()) [0, 4, 7, 12, 7, 12, 16].forEach((n, i) => { note(ctx.currentTime + i * .13, hz(n + 12), i === 6 ? .7 : .16, .16); note(ctx.currentTime + i * .13, hz(n), .2, .08, 'sine'); }); },
   over() { if (ready()) { note(ctx.currentTime, 520, .14, .2); note(ctx.currentTime + .14, 390, .16, .2); note(ctx.currentTime + .3, 260, .3, .2); } },
   step() { if (ready()) burst(ctx.currentTime, .035, 'bandpass', 900 + Math.random() * 300, .05, 2); },
   // The roadster: a rising and falling hum with rushing air for the whole flight, then a hiss of vapour on landing.
@@ -141,6 +142,15 @@ export const sound = {
   land() { if (ready()) { const at = ctx.currentTime; note(at, 82, .22, .45, 'sine'); burst(at, 1.3, 'highpass', 3200, .26, .6, .04); burst(at + .05, .7, 'bandpass', 700, .18, .7, .05); } },
   whoosh() { if (ready()) { burst(ctx.currentTime, .9, 'bandpass', 900, .22, .6, .3); burst(ctx.currentTime + .2, 1.1, 'bandpass', 2200, .12, .6, .5); } }
 };
-// Sound may only start from a tap or a key press.
-for (const kind of ['pointerdown', 'keydown']) addEventListener(kind, () => sound.unlock(), { passive: true });
+// Sound may only start from a tap or a key press. Phones count the end of a tap, not the touch going down
+// (iOS ignores pointerdown), so every kind is listened for until the sound is really running.
+for (const kind of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) addEventListener(kind, () => sound.unlock(), { passive: true, capture: true });
+// Until then a small note says how to turn it on.
+let note_ = null;
+function heard() { if (ctx?.state === 'running' && note_) { note_.remove(); note_ = null; } }
+if (!muted) {
+  note_ = document.createElement('div'); note_.className = 'sound-note'; note_.textContent = 'Tap anywhere for sound';
+  const show = () => { if (note_) { document.body.append(note_); setTimeout(() => { note_?.remove(); note_ = null; }, 15000); } };
+  if (document.body) show(); else addEventListener('DOMContentLoaded', show);
+}
 addEventListener('visibilitychange', () => { if (!ctx || muted) return; if (document.hidden) ctx.suspend(); else ctx.resume(); });
