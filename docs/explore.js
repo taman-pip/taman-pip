@@ -1,5 +1,5 @@
-import { games, openGames } from './games.js?v=202611211627';
-import { sound } from './sound.js?v=202611211627';
+import { games, openGames } from './games.js?v=202611211632';
+import { sound } from './sound.js?v=202611211632';
 const places = [
   { id: 'market', name: 'Pasar Malam', type: 'Night market', tone: '#bb6845', point: [6.58, .14, 3.14], distance: 4.5, angle: .35, tilt: .91 },
   { id: 'gate', name: 'Town entrance', type: 'Welcome arch', tone: '#658052', point: [0, .15, 5.75], distance: 1.95, angle: .20, tilt: 1.22 },
@@ -428,7 +428,7 @@ async function start() {
   const ray=new T.Raycaster();
   const pins = places.map(p => {
     const el = document.createElement('button'); el.className='pin'; el.dataset.id=p.id; el.style.setProperty('--tone',p.tone);
-    el.textContent=p.name;if(p.owner){const who=document.createElement('small');who.textContent='@'+p.owner;el.append(who);}el.setAttribute('aria-label','Visit '+p.name); el.onclick=()=>choose(p); el.hidden=true;
+    el.textContent=p.name;el.setAttribute('aria-label','Visit '+p.name); el.onclick=()=>choose(p); el.hidden=true;
     $('pins').append(el);
     return {p,el,anchor:new T.Vector3(...p.point).add(new T.Vector3(0,p.detail ? .18 : p.id==='apartments' ? .7 : .49,0))};
   });
@@ -582,7 +582,7 @@ async function start() {
       const s=T.MathUtils.clamp(camera.position.distanceTo(tag.at)*.052,.30,.50);
       tag.mesh.scale.set(s,s,1);tag.mesh.position.copy(tag.at);tag.mesh.position.y+=s*.15+.015;
       tag.mesh.quaternion.copy(camera.quaternion);
-      if(tag.shop)tag.mesh.visible=active!==tag.shop && camera.position.distanceTo(tag.at)>1.7;   // up close the counter plate and the pin say it
+      if(tag.shop)tag.mesh.visible=tag.shop.type.startsWith('Shophouse') || camera.position.distanceTo(tag.at)>1.7;   // up close the plate on the counter says it
     }
     renderer.render(scene,camera);
     for (const pin of homePins) {

@@ -13,10 +13,10 @@ function ready() {
     hiss = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
     const data = hiss.getChannelData(0); for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
     grill = bed('highpass', 4800, .7); murmur = bed('lowpass', 420, .5);
-    loadClip(); ctx.onstatechange = heard;
+    loadClip();
     if (!timer) timer = setInterval(tick, 90);
   }
-  if (ctx.state !== 'running') ctx.resume().then(heard, () => {}); else heard();   // 'suspended', or 'interrupted' on a phone after a call
+  if (ctx.state !== 'running') ctx.resume().catch(() => {});   // 'suspended', or 'interrupted' on a phone after a call
   return ctx;
 }
 function bed(kind, frequency, q) {                // a looping wash of filtered noise, silent until asked for
@@ -110,7 +110,7 @@ export const sound = {
   setMuted(value) {
     muted = value;
     try { localStorage.setItem('taman-pip-mute', muted ? '1' : '0'); } catch {}
-    if (muted) { ctx?.suspend(); note_?.remove(); note_ = null; } else if (ready()) { due = 0; }
+    if (muted) { ctx?.suspend(); voice?.pause(); } else if (ready()) { due = 0; }
     for (const fn of listeners) fn(muted);
   },
   unlock() { if (ready() && !playing) { playing = true; tune ||= tunes.town; due = 0; hear(); } },
@@ -142,15 +142,27 @@ export const sound = {
   land() { if (ready()) { const at = ctx.currentTime; note(at, 82, .22, .45, 'sine'); burst(at, 1.3, 'highpass', 3200, .26, .6, .04); burst(at + .05, .7, 'bandpass', 700, .18, .7, .05); } },
   whoosh() { if (ready()) { burst(ctx.currentTime, .9, 'bandpass', 900, .22, .6, .3); burst(ctx.currentTime + .2, 1.1, 'bandpass', 2200, .12, .6, .5); } }
 };
-// Sound may only start from a tap or a key press. Phones count the end of a tap, not the touch going down
-// (iOS ignores pointerdown), so every kind is listened for until the sound is really running.
-for (const kind of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) addEventListener(kind, () => sound.unlock(), { passive: true, capture: true });
-// Until then a small note says how to turn it on.
-let note_ = null;
-function heard() { if (ctx?.state === 'running' && note_) { note_.remove(); note_ = null; } }
-if (!muted) {
-  note_ = document.createElement('div'); note_.className = 'sound-note'; note_.textContent = 'Tap anywhere for sound';
-  const show = () => { if (note_) { document.body.append(note_); setTimeout(() => { note_?.remove(); note_ = null; }, 15000); } };
-  if (document.body) show(); else addEventListener('DOMContentLoaded', show);
+// Sound may only start from a finished tap or a key press. A phone does not count the finger going down
+// (iOS ignores pointerdown), so the audio is started on touchend / pointerup / click, and tried on every one
+// until it is really running.
+let voice = null;
+function wake() {
+  if (muted) return;
+  // An iPhone with its ring switch on silent mutes web audio unless the page is also playing "media":
+  // a silent looping <audio> element (and, where the browser has it, the playback audio session) does that.
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
+  if (!voice) {
+    const rate = 8000, n = rate / 2, wav = new DataView(new ArrayBuffer(44 + n * 2)), text = (at, word) => [...word].forEach((c, i) => wav.setUint8(at + i, c.charCodeAt(0)));
+    text(0, 'RIFF'); wav.setUint32(4, 36 + n * 2, true); text(8, 'WAVEfmt '); wav.setUint32(16, 16, true); wav.setUint16(20, 1, true); wav.setUint16(22, 1, true);
+    wav.setUint32(24, rate, true); wav.setUint32(28, rate * 2, true); wav.setUint16(32, 2, true); wav.setUint16(34, 16, true); text(36, 'data'); wav.setUint32(40, n * 2, true);
+    voice = new Audio(URL.createObjectURL(new Blob([wav], { type: 'audio/wav' })));
+    voice.loop = true; voice.setAttribute('playsinline', ''); voice.preload = 'auto';
+  }
+  if (voice.paused) voice.play().catch(() => {});
+  if (!ready()) return;
+  const blip = ctx.createBufferSource(); blip.buffer = ctx.createBuffer(1, 1, ctx.sampleRate); blip.connect(ctx.destination); blip.start();   // older iPhones start the clock only once something plays
+  sound.unlock();
 }
-addEventListener('visibilitychange', () => { if (!ctx || muted) return; if (document.hidden) ctx.suspend(); else ctx.resume(); });
+for (const kind of ['touchend', 'pointerup', 'click', 'keydown']) addEventListener(kind, wake, { passive: true, capture: true });
+addEventListener('pointerdown', event => { if (event.pointerType === 'mouse') wake(); }, { passive: true, capture: true });
+addEventListener('visibilitychange', () => { if (!ctx || muted) return; if (document.hidden) { ctx.suspend(); voice?.pause(); } else { ctx.resume().catch(() => {}); } });
