@@ -32,16 +32,15 @@ const REEL = {1: 'https://www.instagram.com/reel/Dfm3nabT8e9/', 2: 'https://www.
 const eggs = {
   water: {from: 'Episode 1 \u00b7 Retired Pip', line: '\u201cIntroducing\u2026 WATER!\u201d', note: 'Now one hundred percent wetter.', hint: 'Walk down to the pond.', reel: REEL[1]},
   sale: {from: 'Episode 2 \u00b7 Pip vs 11.11', line: '\u201cAdd to cart only.\u201d', note: 'It\u2019s the twelfth. The sale did not get the memo.', hint: 'Search for the biggest sale date of the year.', reel: REEL[2]},
-  logo: {from: 'Episode 3 · Just a Quick Favour', line: '“Can you make the logo bigger?”', note: '“I’m supposed to be retired.”', hint: 'Someone thinks the logo could be bigger. Give it a few taps.', reel: REEL[3]},
   moon: {from: 'The Town That Never Looked at the Moon', line: '“And the moon looked back.”', note: 'Quick. Use a mirror.', hint: 'Look low in the northern sky.', reel: REEL.moon},
   roadster: {from: 'Pip’s Flying Roadster', line: '“Pip… can it go Genting?”', note: 'Toll not paid.', hint: 'Something red is parked near the entrance. Something red also flies.', reel: REEL.roadster},
   gate: {from: 'Taman Pip · Episode 1', line: 'Please don’t park at this gate.', note: 'Not even for “5 MINIT”.', hint: 'Walk up to the chairman’s gate.', reel: TAMAN_1},
   guard: {from: 'Taman Pip · Episode 1', line: '“Why their house bigger than mine?”', note: 'The mansions have their own guardhouse. It has one plastic chair.', hint: 'Walk up to where the mansions begin.', reel: TAMAN_1},
   pipchun: {from: 'Taman Pip · Episode 2', line: '“Eh, Ayam Gepuk Pipchun!”', note: 'The first stall in the pasar malam.', hint: 'Play a round of Gepuk! at the stalls.', reel: REEL.taman2},
-  huss: {from: 'Taman Pip · Episode 3', line: 'Huss huss huss.', note: 'A very suspicious sound from behind the counter.', hint: 'Wrap or serve a burger at the stall.', reel: REEL.taman3},
+  huss: {from: 'Taman Pip · Episode 3', line: 'Hus hus hus.', note: 'A very suspicious sound from behind the counter.', hint: 'Wrap or serve a burger at the stall.', reel: REEL.taman3},
   eggs: {from: 'What If Costco Opened in Malaysia?', line: '“…Eggs.”', note: 'He only came in for one thing.', hint: 'Search for the one thing Pip went shopping for.', reel: REEL.costco},
   look: {from: 'What If Malaysia Got Disneyland Before Singapore?', line: '“I’m just here to look.”', note: 'Castle view, mah. Breakfast extra.', hint: 'Search for a theme park Malaysia does not have.', reel: REEL.disneyland},
-  seat: {from: 'Imagine This Ah… · The Queue That Never Ended', line: 'Reserved.', note: 'A tissue packet is holding this seat.', hint: 'Walk to where the bus stops.', reel: '', other: true}
+  seat: {from: 'Episode 3 · The Queue That Never Ended', line: 'Reserved.', note: 'A tissue packet is holding this seat.', hint: 'Walk to where the bus stops.', reel: REEL[3]}
 };
 const eggWords = {water: 'water', air: 'water', '11.11': 'sale', '1111': 'sale', '11/11': 'sale', sale: 'sale', eggs: 'eggs', egg: 'eggs', telur: 'eggs', disneyland: 'look', castle: 'look', moon: 'moon', bulan: 'moon', genting: 'roadster', roadster: 'roadster'};
 let eggsFound = {};   // id -> time found
@@ -100,19 +99,10 @@ $('sound').onclick = () => { sound.setMuted(!sound.muted); if (!sound.muted) sou
 // Finishing a stall game can earn an egg; it is shown once the game is closed, so it is not hidden behind it.
 let owed = [];
 addEventListener('taman-game', event => {
-  const {id, score} = event.detail, egg = id === 'gepuk' ? 'pipchun' : (id === 'huss' || id === 'special') && score > 0 ? 'huss' : null;
+  const {id, score} = event.detail, egg = id === 'gepuk' ? 'pipchun' : (id === 'hus' || id === 'special') && score > 0 ? 'huss' : null;
   if (egg && !eggsFound[egg] && !owed.includes(egg)) owed.push(egg);
 });
 $('arcade').addEventListener('close', () => { const egg = owed.shift(); if (egg) found(egg); owed = []; });
-// The logo gets bigger if you ask three times (episode 3).
-let logoTaps = 0, logoTimer = 0;
-document.querySelector('.brand').onclick = event => {
-  event.preventDefault();
-  clearTimeout(logoTimer); logoTimer = setTimeout(() => { logoTaps = 0; }, 1500);
-  if (++logoTaps < 3) return;
-  logoTaps = 0; document.body.classList.add('big-logo'); found('logo');
-  setTimeout(() => document.body.classList.remove('big-logo'), 6000);
-};
 eggCount();
 const params = new URLSearchParams(location.search);
 let people = [];
@@ -145,6 +135,7 @@ $('open-places').onclick = () => drawer(true);
 $('close-places').onclick = $('scrim').onclick = () => drawer(false);
 mobile.addEventListener('change', () => drawer(false, false));
 drawer(false, false);
+setTimeout(() => { $('gesture-hint').hidden = true; }, 7000);   // the hint is only for the first look
 
 $('help').onclick = () => $('guide').showModal();
 $('close-help').onclick = () => $('guide').close();
@@ -338,7 +329,7 @@ const roster = fetch('./assets/residents.json').then(r => r.json()).then(data =>
   const count = people.filter(o => o.kind !== 'pip').length;
   $('population-count').textContent = count + ' neighbours';
   const flats = data.apartments - people.filter(o => o.kind === 'apartment').length;
-  $('milestone-text').textContent = flats + ' more apartments to fill.';
+  $('milestone-text').textContent = flats + ' apartments to go';
   const find = name => name && people.find(o => o.u.toLowerCase() === name.toLowerCase().replace(/^@/, ''));
   let saved = null; try { saved = localStorage.getItem('taman-pip-me'); } catch {}
   me = find(params.get('as')) || (!params.get('u') && find(saved)) || null;
@@ -777,8 +768,20 @@ async function start() {
     const wheel=solidMesh(out);wheel.position.set(side*(W_/2-.004),.027,z);wheel.userData.side=side;roadster.add(wheel);wheels.push(wheel);
   }
   roadster.scale.setScalar(.6);roadster.position.copy(home);roadster.rotation.y=Math.PI;scene.add(roadster);
-  let hop=null, propClock=0;
-  tappable.push([roadster,'roadster',.3,()=>{if(!hop){hop={start:performance.now(),length:6200,last:home.clone()};sound.whoosh();wake();}}]);
+  // Vapour: soft white puffs under the roadster as it lifts off and, mostly, as it sets down (as in the film).
+  const mist=picture(64,64,g=>{const fog=g.createRadialGradient(32,32,2,32,32,31);fog.addColorStop(0,'rgba(255,255,255,.95)');fog.addColorStop(.6,'rgba(255,255,255,.5)');fog.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=fog;g.fillRect(0,0,64,64);});
+  const puffs=Array.from({length:22},()=>{
+    const mesh=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({map:mist,transparent:true,depthWrite:false,opacity:0}));
+    mesh.visible=false;mesh.renderOrder=2;scene.add(mesh);return {mesh,age:1,life:1,vx:0,vy:0,vz:0,size:.1};
+  });
+  function puff(x,y,z,spread,size,life) {
+    const p=puffs.find(o=>!o.mesh.visible);if(!p)return;
+    const a=Math.random()*Math.PI*2,out=spread*(.4+Math.random()*.6);
+    p.mesh.position.set(x,y,z);p.vx=Math.cos(a)*out;p.vz=Math.sin(a)*out;p.vy=.05+Math.random()*.08;
+    p.age=0;p.life=life*(.7+Math.random()*.6);p.size=size*(.7+Math.random()*.6);p.mesh.visible=true;
+  }
+  let hop=null, propClock=0, puffDue=0;
+  tappable.push([roadster,'roadster',.3,()=>{if(!hop){hop={start:performance.now(),length:6200,last:home.clone()};sound.fly(6.2);for(let i=0;i<6;i++)puff(home.x,home.y+.02,home.z,.25,.16,.9);wake();}}]);
   props=now=>{
     const dt=Math.min(.05,(now-propClock)/1000||0);propClock=now;busy=false;
     for(const gate of gates) {
@@ -794,9 +797,19 @@ async function start() {
         if(near)gate.guard.rotation.y=Math.atan2(hero.x-gate.guard.position.x,hero.z-gate.guard.position.z);
       }
     }
+    for(const p of puffs) {
+      if(!p.mesh.visible)continue;
+      p.age+=dt/p.life;busy=true;
+      if(p.age>=1){p.mesh.visible=false;continue;}
+      p.mesh.position.x+=p.vx*dt;p.mesh.position.y+=p.vy*dt;p.mesh.position.z+=p.vz*dt;p.vx*=.96;p.vz*=.96;
+      const s=p.size*(.5+p.age*1.6);p.mesh.scale.set(s,s,1);p.mesh.material.opacity=.75*(1-p.age)*(1-p.age);p.mesh.quaternion.copy(camera.quaternion);
+    }
     if(hop) {                                    // up, once round above the house, and down on the same spot
       const t=(now-hop.start)/hop.length;busy=true;
-      if(t>=1){hop=null;roadster.position.copy(home);roadster.rotation.set(0,Math.PI,0);for(const w of wheels)w.rotation.z=0;}
+      if(t>=1){
+        hop=null;roadster.position.copy(home);roadster.rotation.set(0,Math.PI,0);for(const w of wheels)w.rotation.z=0;
+        sound.land();for(let i=0;i<12;i++)puff(home.x,home.y+.02,home.z,.42,.2,1.3);   // touchdown: a ring of vapour
+      }
       else {
         const k=t*t*(3-2*t),turn=k*Math.PI*2,wide=Math.sin(Math.PI*t)*.75,lift=Math.pow(Math.sin(Math.PI*t),.6)*1.05;
         point.set(home.x+Math.sin(turn)*wide,home.y+lift,home.z-(1-Math.cos(turn))*wide*.8);
@@ -806,6 +819,7 @@ async function start() {
           roadster.rotation.y=Math.PI+gap*level;roadster.rotation.z=-Math.sin(turn)*.35*level;
         }
         roadster.position.copy(point);hop.last.copy(point);
+        if(t>.8 && now>puffDue){puffDue=now+70;puff(point.x,Math.max(home.y+.02,point.y-.04),point.z,.12,.13,.8);}   // jets on the way down
         for(const w of wheels)w.rotation.z=w.userData.side*level*Math.PI/2;   // wheels fold flat in the air
       }
     }
@@ -863,7 +877,7 @@ async function start() {
     card();marks();remember();
     for(const pin of $('pins').children)pin.classList.remove('current');
     $('gesture-hint').hidden=true;
-    document.body.classList.add('walking');$('walk').setAttribute('aria-pressed','true');$('walk-label').textContent='Stop';
+    document.body.classList.add('walking');$('walk').setAttribute('aria-pressed','true');$('walk-label').textContent='Exit walk';
     $('view-name').textContent=me?'Walking as @'+me.u:'Walking as a visitor';
     if(mobile.matches)drawer(false,false);
     atHome=false;clock=performance.now();

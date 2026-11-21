@@ -153,5 +153,51 @@ button.population:hover{background:#dfe8d2}
 .text-link{padding:0;font-size:inherit;font-weight:650;color:var(--forest);text-decoration:underline;text-underline-offset:2px}
 @media(max-width:760px),(max-height:500px){.album-open{width:calc(100% - 32px);margin:0 16px;padding:8px 0 6px}}
 @media(max-height:500px){.album-open{display:none}}
-.brandmark{transition:transform .5s cubic-bezier(.3,1.6,.5,1);transform-origin:left center}
-.big-logo .brandmark{transform:scale(1.9)}.brand span{transition:margin .5s}.big-logo .brand span{margin-left:34px}
+
+/* ---- Layout pass: one bottom bar, fewer things on the map ------------------------------------ */
+.tools{left:22px;right:22px;bottom:22px;gap:10px;align-items:flex-end}
+.dock{display:flex;align-items:center;gap:8px;pointer-events:auto;min-width:0}
+.dock .modes{box-shadow:0 2px 8px #2a513512}
+.tools .walk,.tools #open-places{position:static;display:flex;align-items:center;justify-content:center;gap:8px;height:50px;min-width:0;padding:0 16px 0 13px;border-radius:13px;font-size:14px;font-weight:650;white-space:nowrap;box-shadow:0 2px 8px #2a513512}
+.tools .walk{border:1px solid #c4cebd;background:var(--paper);color:var(--ink)}
+.tools .walk:hover{background:#e4eddd}
+.tools .walk[aria-pressed=true]{background:var(--forest);border-color:var(--forest);color:#fff}
+.tools #open-places{display:none}
+.tools .zoom,.tools .modes{height:50px}.tools .zoom button,.tools .modes button{height:40px}
+.walking .dock .modes,.walking #open-places{display:none}
+#gesture-hint{bottom:84px}
+#walk-hint{top:auto;bottom:84px;animation:hint-out .5s 7s forwards}
+@keyframes hint-out{to{opacity:0;visibility:hidden}}
+/* a mouse and keyboard do not need the on-screen stick */
+@media(hover:hover) and (pointer:fine){.walking #stick,.walking #run{display:none}}
+@media(hover:none),(pointer:coarse){.walking #walk-hint{display:none}}
+/* touch screens pinch to zoom, so only the reset button stays */
+@media(pointer:coarse){.zoom #zoom-in,.zoom #zoom-out{display:none}.zoom button:last-child{border-left:0;border-radius:9px;width:42px}}
+.directory-foot{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 14px 14px;padding-top:12px;border-top:1px solid var(--line)}
+.tile{display:flex;align-items:center;gap:9px;min-width:0;padding:8px 9px;border-radius:12px;background:#f4f5ed;text-align:left}
+button.tile:hover{background:#e9eee1}
+.tile>span:last-child{min-width:0}.tile strong{display:block;font-size:13px;font-weight:650;line-height:1.25}
+.tile small{display:block;font-size:12px;color:var(--muted);line-height:1.3}
+.tile .milestone-icon{flex:none;width:32px;height:32px;border-radius:9px;background:#e4e9da;color:#526c4e;display:grid;place-items:center}
+.tile .milestone-icon.egg{background:#f7edd0;color:#a8761c}
+.tile .milestone-icon svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
+#guide{max-width:min(420px,92vw)}#guide dl{margin:14px 0 2px}#guide dd{margin-bottom:10px}
+@media(max-width:760px),(max-height:500px){
+  .tools{left:12px;right:12px;bottom:calc(13px + env(safe-area-inset-bottom));justify-content:space-between}
+  .tools #open-places{display:flex;background:var(--forest);color:#fff;border:0}
+  .dock .modes{display:none}
+  .has-card .tools .walk{display:none}
+  #gesture-hint{bottom:calc(76px + env(safe-area-inset-bottom))}
+  .walking .tools{justify-content:flex-end}
+  #stick{left:14px;bottom:calc(16px + env(safe-area-inset-bottom))}
+  #run{right:14px;bottom:calc(76px + env(safe-area-inset-bottom))}
+  .walking .zoom{display:none}
+  .directory-foot{margin:0 12px 8px;padding-top:8px}
+}
+@media(max-width:350px){.tools #open-places span{display:none}.tools #open-places{padding:0 14px}}
+@media(max-height:420px){#stick{bottom:calc(12px + env(safe-area-inset-bottom))}#run{right:14px;bottom:calc(72px + env(safe-area-inset-bottom))}}
+@media(max-height:500px){.directory-foot{display:none}}
+.walking .tools #open-places{display:none}
+.directory-foot{grid-template-columns:1fr}
+.tile strong,.tile small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:760px){.directory-foot{grid-template-columns:1fr 1fr}}

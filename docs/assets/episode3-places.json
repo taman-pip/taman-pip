@@ -1,0 +1,16 @@
+[
+  {"id":"dessert","name":"Dessert Shop","owner":"camry_6681","pitch":"DESSERT","point":[6.72,0.18,3.39],"keywords":"kuih lapis layered cake"},
+  {"id":"apam-balik","name":"Apam Balik","owner":"mellxh_","pitch":"APAM BALIK","point":[7.36,0.18,3.39]},
+  {"id":"gerai-kedah","name":"Gerai Kedah","owner":"a1r1ff","pitch":"GERAI KEDAH","point":[8.0,0.18,3.39],"keywords":"Kedah-style cuisine"},
+  {"id":"tomyam","name":"Tomyam","owner":"wilson.ang.39","pitch":"TOMYAM","point":[8.64,0.18,3.39],"keywords":"tom yam"},
+  {"id":"pak-gembus-myss","name":"Pak Gembus Myss","owner":"myssnuha3","pitch":"PAK GEMBUS MYSS","point":[6.72,0.18,4.36],"reverse":true},
+  {"id":"kopitandori","name":"Kedai Kopitandori","owner":"aaexoh.bmx","pitch":"KEDAI KOPITANDORI","point":[7.36,0.18,4.36],"reverse":true},
+  {"id":"ayam-gepuk","name":"Ayam Gepuk","owner":"uhdsmcx","pitch":"AYAM GEPUK","point":[8.0,0.18,4.36],"reverse":true},
+  {"id":"spam-balik","name":"Spam Balik Pipchun","owner":"awesomianist","pitch":"SPAM BALIK PIPCHUN","point":[8.64,0.18,4.36],"reverse":true},
+  {"id":"air-balang","name":"Air Balang","owner":"alynkburp","point":[5.48,0.17,2.32],"keywords":"minuman balang drinks"},
+  {"id":"gepuk-pipchun","name":"Ayam Gepuk Pipchun","owner":"limmegann","point":[4.94,0.17,2.42]},
+  {"id":"fried-rice","name":"Chinese Fried Rice","owner":"i.am.blue.balls","point":[4.94,0.18,2.85],"keywords":"nasi goreng wok"},
+  {"id":"ramly","name":"Ramly Burger","type":"Vacant pitch","point":[6.02,0.18,2.94]},
+  {"id":"mamak","name":"Mamak","owner":"yeemasontyrell1","type":"Shophouse C3","point":[2.475,0.32,4.25],"distance":1.14},
+  {"id":"clinic","name":"Klinik","owner":"yeeman31","type":"Shophouse C7","point":[4.575,0.32,4.25],"distance":1.14,"keywords":"clinic"}
+]

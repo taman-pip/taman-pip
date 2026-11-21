@@ -29,17 +29,17 @@ function floaters(list, g, dt) {
   for (let i = list.length - 1; i >= 0; i--) if (list[i].t > .7) list.splice(i, 1);
 }
 
-// ---- 1. Huss Huss Huss: fold the egg round the patty -----------------------
+// ---- 1. Hus Hus Hus: three folds round the patty, one hus each ---------------
 function huss(api) {
   const sides = ['top', 'right', 'bottom', 'left'], vectors = { top: [0, -1], right: [1, 0], bottom: [0, 1], left: [-1, 0] };
   let order, step, fold, shake, leave, pops = [], pulse = 0;
-  const next = () => { order = [...sides].sort(() => Math.random() - .5); step = 0; fold = { top: 0, right: 0, bottom: 0, left: 0 }; leave = 0; };
+  const next = () => { order = [...sides].sort(() => Math.random() - .5).slice(0, 3); step = 0; fold = { top: 0, right: 0, bottom: 0, left: 0 }; leave = 0; };
   next();
   function choose(side) {
     if (leave) return;
     if (side === order[step]) {
-      step++; sfx.huss(); pops.push({ text: 'huss', x: W / 2 + vectors[side][0] * 86, y: 200 + vectors[side][1] * 86, t: 0 });
-      if (step === 4) { api.score(1); leave = .001; sfx.great(); sfx.hussHussHuss(); }
+      sfx.hus(step); step++; pops.push({ text: 'hus', x: W / 2 + vectors[side][0] * 86, y: 200 + vectors[side][1] * 86, t: 0 });
+      if (step === 3) { api.score(1); leave = .001; }
     } else { shake = .3; api.penalty(1); sfx.bad(); pops.push({ text: '-1s', x: W / 2, y: 110, t: 0, color: '#ffb4a2' }); }
   }
   return {
@@ -100,13 +100,13 @@ function special(api) {
   next();
   const wrong = text => { shake = .3; api.penalty(1); sfx.bad(); pops.push({ text: text || '-1s', x: cx, y: 96, t: 0, color: '#ffb4a2', size: 16 }); };
   const hint = () => ({ patty: 'Put a patty on', cook: t < ready ? 'Wait for the green ring…' : 'Flip it now', egg: 'Crack an egg', cheese: 'Add the cheese',
-    fold: 'Fold the egg: tap the arrow', sauce: 'Sauce: ' + order.sauces.filter(o => !sauced.includes(o)).join(', '), bun: 'Into the bun' }[stage]);
+    fold: 'Hus, hus, hus: tap the arrow', sauce: 'Sauce: ' + order.sauces.filter(o => !sauced.includes(o)).join(', '), bun: 'Into the bun' }[stage]);
   function useTray(id) {
     press = { id, t: .18 };
     if (stage === 'patty' && id === 'patty') { stage = 'cook'; t = 0; ready = rand(1.3, 1.9); burn = ready + 1.7; sfx.sizzle(); }
-    else if (stage === 'egg' && id === 'egg') { egg = .01; sfx.sizzle(); stage = order.cheese ? 'cheese' : 'fold'; if (stage === 'fold') foldOrder = [...sides].sort(() => Math.random() - .5); }
-    else if (stage === 'cheese' && id === 'cheese') { cheese = true; sfx.good(); stage = 'fold'; foldOrder = [...sides].sort(() => Math.random() - .5); }
-    else if (stage === 'sauce' && order.sauces.includes(id) && !sauced.includes(id)) { sauced.push(id); sfx.huss(); if (sauced.length === order.sauces.length) stage = 'bun'; }
+    else if (stage === 'egg' && id === 'egg') { egg = .01; sfx.sizzle(); stage = order.cheese ? 'cheese' : 'fold'; if (stage === 'fold') foldOrder = [...sides].sort(() => Math.random() - .5).slice(0, 3); }
+    else if (stage === 'cheese' && id === 'cheese') { cheese = true; sfx.good(); stage = 'fold'; foldOrder = [...sides].sort(() => Math.random() - .5).slice(0, 3); }
+    else if (stage === 'sauce' && order.sauces.includes(id) && !sauced.includes(id)) { sauced.push(id); sfx.good(); if (sauced.length === order.sauces.length) stage = 'bun'; }
     else if (stage === 'bun' && id === 'bun') { api.score(1); sfx.great(); leave = .001; pops.push({ text: 'Siap! +1', x: cx, y: 96, t: 0 }); }
     else wrong(stage === 'sauce' && ['chili', 'mayo', 'pepper'].includes(id) ? 'not on the order' : '-1s');
   }
@@ -118,7 +118,7 @@ function special(api) {
     } else if (stage === 'fold') {
       const dx = x - cx, dy = y - cy, side = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'bottom' : 'top');
       const want = foldOrder.find(o => !folds[o]);
-      if (side === want) { folds[side] = .01; sfx.huss(); pops.push({ text: 'huss', x: cx + vectors[side][0] * 70, y: cy + vectors[side][1] * 70, t: 0 }); if (sides.every(o => folds[o])) stage = 'sauce'; }
+      if (side === want) { sfx.hus(foldOrder.indexOf(side)); folds[side] = .01; pops.push({ text: 'hus', x: cx + vectors[side][0] * 70, y: cy + vectors[side][1] * 70, t: 0 }); if (foldOrder.every(o => folds[o])) stage = 'sauce'; }
       else wrong();
     }
   }
@@ -218,7 +218,7 @@ function wok(api) {
   function hit() {
     if (rest > 0) return;
     const gap = Math.abs(ring - rim);
-    if (gap < 9) { streak++; api.score(2); sfx.great(); sfx.huss(); pops.push({ text: 'wok hei! +2', x: cx, y: 96, t: 0, color: '#ffd97a' }); toss = 1; }
+    if (gap < 9) { streak++; api.score(2); sfx.great(); pops.push({ text: 'wok hei! +2', x: cx, y: 96, t: 0, color: '#ffd97a' }); toss = 1; }
     else if (gap < 24) { streak++; api.score(1); sfx.good(); pops.push({ text: '+1', x: cx, y: 96, t: 0 }); toss = .7; }
     else { streak = 0; api.miss(); sfx.bad(); pops.push({ text: ring > rim ? 'too early' : 'too late', x: cx, y: 96, t: 0, color: '#ffb4a2' }); }
     fresh();
@@ -318,10 +318,10 @@ function gepuk(api) {
 }
 
 export const games = [
-  { id: 'huss', name: 'Huss Huss Huss', stall: 'Burger stall', tone: '#b0503f', make: huss,
-    how: 'Fold the egg round the patty. Tap the side the arrow points at, four folds a burger. A wrong fold costs a second.' },
+  { id: 'hus', name: 'Hus Hus Hus', stall: 'Burger stall', tone: '#b0503f', make: huss,
+    how: 'Fold the egg round the patty: three folds a burger, hus, hus, hus. Tap the side the arrow points at. A wrong fold costs a second.' },
   { id: 'special', name: 'Burger Special', stall: 'Burger stall', tone: '#7a4a2a', make: special,
-    how: 'Make each order the pasar malam way: patty on, flip it on the green ring, crack the egg, cheese if they asked, fold the egg round it, the sauces on the ticket, then the bun. Mistakes cost a second.' },
+    how: 'Make each order the pasar malam way: patty on, flip it on the green ring, crack the egg, cheese if they asked, fold the egg round it (hus, hus, hus), the sauces on the ticket, then the bun. Mistakes cost a second.' },
   { id: 'wok', name: 'Wok Hei', stall: 'Fried rice stall', tone: '#c58a2b', make: wok,
     how: 'Tap anywhere as the ring meets the rim of the wok to toss the nasi goreng. Dead on scores double. Three misses and the rice is on the floor.' },
   { id: 'gepuk', name: 'Gepuk!', stall: 'Ayam Gepuk Pipchun', tone: '#b5382a', make: gepuk,
@@ -395,7 +395,7 @@ function pick(game) {
 }
 export function openGames(id, as = '') {
   player = as;
-  const game = games.find(o => o.id === (id === 'flip' ? 'special' : id));   // 'flip' was this game's first name
+  const game = games.find(o => o.id === ({ flip: 'special', huss: 'hus' }[id] || id));   // earlier names still open the same games
   if (!box.open) box.showModal();
   sound.stall(true);
   if (game) pick(game); else { cancelAnimationFrame(loop); loop = 0; current = null; play = null; panel('menu'); }

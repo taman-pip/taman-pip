@@ -1,5 +1,5 @@
-// Every sound in the town is synthesised here: the tune, the birds, the pasar malam and the stall calls.
-// Nothing is recorded or downloaded. Browsers only allow sound after a tap, so it starts on the first one.
+// Every sound in the town is made here. The tune, the birds and the pasar malam are synthesised; the one
+// recording is the burger stall's "hus hus hus" (assets/hus.wav, by @thedrizzleshow, used with permission). Browsers only allow sound after a tap, so it starts on the first one.
 let ctx = null, master = null, hiss = null, timer = 0, tune = null, step = 0, due = 0, playing = false, market = 0, grill = null, murmur = null, callAt = 0, birdAt = 0;
 let muted = false;
 try { muted = localStorage.getItem('taman-pip-mute') === '1'; } catch {}
@@ -13,6 +13,7 @@ function ready() {
     hiss = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
     const data = hiss.getChannelData(0); for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
     grill = bed('highpass', 4800, .7); murmur = bed('lowpass', 420, .5);
+    loadClip();
     if (!timer) timer = setInterval(tick, 90);
   }
   if (ctx.state === 'suspended') ctx.resume();
@@ -36,11 +37,37 @@ function note(at, frequency, length, gain, kind = 'triangle') {
   level.gain.setValueAtTime(.0001, at); level.gain.linearRampToValueAtTime(gain, at + .008); level.gain.exponentialRampToValueAtTime(.0001, at + length);
   osc.connect(level).connect(master); osc.start(at); osc.stop(at + length + .03);
 }
-// "huss": a breathy "hu" and a long "sss", the sound of the spatula folding the egg
-function hussAt(at, gain = .5) {
-  burst(at, .1, 'bandpass', 620, gain * .8, 1.4);
-  burst(at + .05, .1, 'bandpass', 1500, gain * .35, 1.2);
-  burst(at + .08, .24, 'highpass', 5600, gain * .7, .7, .03);
+// The recording holds two rounds of three: where each hus starts and how long it lasts, in seconds.
+const HUS = [[[.03, .24], [.265, .19], [.445, .24]], [[1.005, .24], [1.235, .19], [1.415, .24]]];
+let clip = null, round = 0;
+function loadClip() {
+  fetch('./assets/hus.wav').then(r => r.arrayBuffer()).then(data => ctx.decodeAudioData(data)).then(buffer => { clip = buffer; }).catch(() => {});
+}
+function slice(at, start, length, gain) {
+  const source = ctx.createBufferSource(), level = ctx.createGain();
+  source.buffer = clip;
+  level.gain.setValueAtTime(.0001, at); level.gain.linearRampToValueAtTime(gain, at + .012);
+  level.gain.setValueAtTime(gain, at + length - .03); level.gain.linearRampToValueAtTime(.0001, at + length);
+  source.connect(level).connect(master); source.start(at, start, length + .02);
+}
+// One hus: the recording when it has loaded, otherwise the synthesised stand-in below.
+function husAt(at, gain = .5, nth = 0) {
+  if (clip) { const [start, length] = HUS[round % 2][nth % 3]; slice(at, start, length, gain * 2.2); return; }
+  synthHus(at, gain, 150 - nth * 6);
+}
+// The stand-in: a breath, a short "u" (a low buzz through two mouth-shaped filters) and an "s".
+function synthHus(at, gain = .5, pitch = 150) {
+  burst(at, .07, 'bandpass', 1300, gain * .35, .9, .01);
+  const buzz = ctx.createOscillator(), level = ctx.createGain();
+  buzz.type = 'sawtooth'; buzz.frequency.setValueAtTime(pitch * 1.06, at + .03); buzz.frequency.linearRampToValueAtTime(pitch * .94, at + .15);
+  level.gain.setValueAtTime(.0001, at + .03); level.gain.linearRampToValueAtTime(gain * .9, at + .06); level.gain.exponentialRampToValueAtTime(.0001, at + .16);
+  for (const [formant, q, amount] of [[330, 6, 1], [820, 8, .55]]) {
+    const mouth = ctx.createBiquadFilter(), out = ctx.createGain();
+    mouth.type = 'bandpass'; mouth.frequency.value = formant; mouth.Q.value = q; out.gain.value = amount;
+    buzz.connect(mouth).connect(out).connect(level);
+  }
+  level.connect(master); buzz.start(at + .03); buzz.stop(at + .2);
+  burst(at + .13, .15, 'highpass', 6200, gain * .6, .7, .02);
 }
 const hz = semitone => 261.63 * Math.pow(2, semitone / 12);   // semitones from middle C
 // Two tunes on the same four chords (C, A minor, F, G): a slow one for the town, a quick one for the stalls.
@@ -62,7 +89,8 @@ function tick() {
     }
   }
   if (market > .25 && now > callAt) {              // the burger stall calling across the market
-    for (let i = 0; i < 3; i++) hussAt(now + .05 + i * .3, .34 * market);
+    if (clip) { round++; const [first] = HUS[round % 2], last = HUS[round % 2][2]; slice(now + .05, first[0], last[0] + last[1] - first[0], .75 * market); }   // the whole call, as recorded
+    else for (let i = 0; i < 3; i++) synthHus(now + .05 + i * .32, .34 * market, 150 - i * 6);
     callAt = now + 5 + Math.random() * 5;
   }
   if (tune === tunes.town && playing && market < .5 && now > birdAt) {   // a bird somewhere in the forest
@@ -90,8 +118,8 @@ export const sound = {
   market(amount) { around = amount; hear(); },
   // While a stall game is open the market is right there, whatever the map is showing.
   stall(on) { atStall = on; hear(); },
-  huss() { if (ready()) hussAt(ctx.currentTime, .55); },
-  hussHussHuss() { if (ready()) for (let i = 0; i < 3; i++) hussAt(ctx.currentTime + i * .26, .5); },
+  // One fold, one hus. `nth` (0, 1, 2) drops the pitch a little each time, as in the film: hus, hus, hus.
+  hus(nth = 0) { if (ready()) { if (nth === 0) round++; husAt(ctx.currentTime, .6, nth); } },
   sizzle() { if (ready()) burst(ctx.currentTime, .32, 'highpass', 5200, .2); },
   thunk() { if (ready()) { note(ctx.currentTime, 105, .13, .5, 'sine'); burst(ctx.currentTime, .06, 'bandpass', 800, .35); } },
   good() { if (ready()) note(ctx.currentTime, 620, .1, .2); },
@@ -99,6 +127,17 @@ export const sound = {
   bad() { if (ready()) note(ctx.currentTime, 130, .28, .18, 'sawtooth'); },
   over() { if (ready()) { note(ctx.currentTime, 520, .14, .2); note(ctx.currentTime + .14, 390, .16, .2); note(ctx.currentTime + .3, 260, .3, .2); } },
   step() { if (ready()) burst(ctx.currentTime, .035, 'bandpass', 900 + Math.random() * 300, .05, 2); },
+  // The roadster: a rising and falling hum with rushing air for the whole flight, then a hiss of vapour on landing.
+  fly(seconds) {
+    if (!ready()) return;
+    const at = ctx.currentTime, hum = ctx.createOscillator(), level = ctx.createGain();
+    hum.type = 'sawtooth'; hum.frequency.setValueAtTime(70, at); hum.frequency.linearRampToValueAtTime(190, at + seconds * .3); hum.frequency.linearRampToValueAtTime(150, at + seconds * .75); hum.frequency.linearRampToValueAtTime(60, at + seconds);
+    const soft = ctx.createBiquadFilter(); soft.type = 'lowpass'; soft.frequency.value = 520;
+    level.gain.setValueAtTime(.0001, at); level.gain.linearRampToValueAtTime(.09, at + .5); level.gain.setValueAtTime(.09, at + seconds - .6); level.gain.linearRampToValueAtTime(.0001, at + seconds);
+    hum.connect(soft).connect(level).connect(master); hum.start(at); hum.stop(at + seconds + .05);
+    burst(at, 1.1, 'bandpass', 900, .2, .6, .3); burst(at + seconds * .45, seconds * .5, 'bandpass', 1600, .07, .5, seconds * .2);
+  },
+  land() { if (ready()) { const at = ctx.currentTime; note(at, 82, .22, .45, 'sine'); burst(at, 1.3, 'highpass', 3200, .26, .6, .04); burst(at + .05, .7, 'bandpass', 700, .18, .7, .05); } },
   whoosh() { if (ready()) { burst(ctx.currentTime, .9, 'bandpass', 900, .22, .6, .3); burst(ctx.currentTime + .2, 1.1, 'bandpass', 2200, .12, .6, .5); } }
 };
 // Sound may only start from a tap or a key press.
