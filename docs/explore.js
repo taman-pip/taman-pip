@@ -27,6 +27,9 @@ let street = false;
 let tab = 'people';
 let active = null;
 let showPerson;
+let walking = false;
+let startWalk;
+let stopWalk;
 let navigate;
 let resetCamera;
 let wake;
@@ -99,8 +102,9 @@ function card() {
       $('card-next').append(b);
     }
   }
-  $('card-as').querySelector('span').textContent = mine ? 'Stop exploring as me' : 'Explore as @' + person.u;
-  $('card-as').classList.toggle('primary', !mine);
+  $('card-as').querySelector('span').textContent = mine ? 'Walk from my gate' : 'Explore as @' + person.u;
+  $('card-as').hidden = fallback;
+  $('card-leave').hidden = !mine;
   $('card-street').querySelector('span').textContent = street ? 'Aerial view' : person.kind === 'apartment' ? 'Balcony view' : 'Street view';
   $('card-street').hidden = fallback;
   $('card-share').querySelector('span').textContent = 'Share';
@@ -111,6 +115,7 @@ function identity() {
   if (me) $('me-name').textContent = '@' + me.u;
 }
 function visit(who, keepDrawer = false) {
+  stopWalk?.();
   person = who; active = null; street = false;
   $('gesture-hint').hidden = true;
   $('view-name').textContent = '@' + who.u + (who.lot && who.kind !== 'pip' ? ' \u00b7 ' + who.lot : '');
@@ -119,7 +124,9 @@ function visit(who, keepDrawer = false) {
   if (!fallback) showPerson?.();
 }
 $('card-close').onclick = () => { const low = street; person = null; street = false; card(); remember(); $('view-name').textContent = 'Town overview'; marks(); if (low) resetCamera?.(); else wake?.(); };
-$('card-as').onclick = () => { me = person === me ? null : person; identity(); card(); remember(); wake?.(); };
+$('card-as').onclick = () => { me = person; identity(); directory(); startWalk?.(); };
+$('card-leave').onclick = () => { me = null; identity(); directory(); card(); remember(); wake?.(); };
+$('walk').onclick = () => walking ? stopWalk() : startWalk?.();
 $('card-street').onclick = () => { street = !street; card(); showPerson?.(); };
 $('card-share').onclick = async () => {
   const url = location.origin + location.pathname + '?u=' + person.u;
@@ -129,9 +136,10 @@ $('card-share').onclick = async () => {
     else { await navigator.clipboard.writeText(url); label.textContent = 'Link copied'; }
   } catch (error) { if (error.name !== 'AbortError') { prompt('Copy this link', url); } }
 };
-$('me').onclick = () => me && visit(me);
+$('me').onclick = () => me && (walking ? startWalk() : visit(me));
 $('population').onclick = () => { tab = 'people'; $('search').value = ''; directory(); if (mobile.matches) drawer(true); else $('search').focus(); };
 function choose(place) {
+  stopWalk?.();
   active = place; person = null; street = false; card(); remember();
   $('gesture-hint').hidden = true;
   $('view-name').textContent = place ? place.name : 'Town overview';
@@ -242,11 +250,11 @@ async function start() {
   sun.shadow.mapSize.set(mobile.matches ? 1024 : 2048, mobile.matches ? 1024 : 2048);
   sun.shadow.bias=-.00015; sun.shadow.normalBias=.008;
   scene.add(sky,sun);
-  const pad = document.createElement('canvas'); pad.width=pad.height=128;
-  const ctx = pad.getContext('2d'), grad = ctx.createRadialGradient(64,64,20,64,64,63);
+  const soft = document.createElement('canvas'); soft.width=soft.height=128;
+  const ctx = soft.getContext('2d'), grad = ctx.createRadialGradient(64,64,20,64,64,63);
   grad.addColorStop(0,'rgba(51,76,53,.43)'); grad.addColorStop(.62,'rgba(66,92,65,.30)'); grad.addColorStop(1,'rgba(66,92,65,0)');
   ctx.fillStyle=grad;ctx.fillRect(0,0,128,128);
-  const shadow = new T.Mesh(new T.PlaneGeometry(33,33),new T.MeshBasicMaterial({map:new T.CanvasTexture(pad),transparent:true,depthWrite:false}));
+  const shadow = new T.Mesh(new T.PlaneGeometry(33,33),new T.MeshBasicMaterial({map:new T.CanvasTexture(soft),transparent:true,depthWrite:false}));
   shadow.rotation.x=-Math.PI/2;shadow.position.set(.6,-.73,-.3);scene.add(shadow);
   const hitPlane = new T.PlaneGeometry(19,19);
   const ground = new T.Mesh(hitPlane,new T.MeshBasicMaterial());ground.rotation.x=-Math.PI/2;ground.updateMatrixWorld();
@@ -265,7 +273,7 @@ async function start() {
     return {kind,el,anchor:new T.Vector3()};
   });
   const tags = [];
-  let framed='';
+  let framed='', grid=null, hero=null, atlas=null, moving=false, asset=null;
   let frame=0, flight=null, loaded=false, atHome=true, dragStart=null;
   const homeTarget = new T.Vector3(0,.13,-.15);
   function homeDistance() {return Math.max(19.7, Math.min(60, (camera.aspect<.85?23.6:26.1)/camera.aspect));}
@@ -295,6 +303,7 @@ async function start() {
       if(f.fov!==f.fov0){camera.fov=f.fov0+(f.fov-f.fov0)*k;camera.updateProjectionMatrix();}
       if(t===1) flight=null;
     }
+    if(walking)stride(now);
     shift.copy(controls.target);controls.target.x=T.MathUtils.clamp(shift.x,-9.15,9.15);controls.target.z=T.MathUtils.clamp(shift.z,-9.15,9.15);
     controls.target.y=T.MathUtils.clamp(shift.y,0,1.7);
     camera.position.sub(shift.sub(controls.target));
@@ -313,6 +322,11 @@ async function start() {
     // Give the closest/selected destinations first choice of label space.
     const used=[]; const dist=controls.getDistance();
     const order=[...pins].sort((a,b)=>(+(b.p===active)- +(a.p===active)) || (mobile.matches && dist>9 ? 0 : a.anchor.distanceTo(camera.position)-b.anchor.distanceTo(camera.position)));
+    if(walking && hero) {
+      hero.tag.quaternion.copy(camera.quaternion);
+      const s=T.MathUtils.clamp(camera.position.distanceTo(hero.root.position)*.13,.14,.34);
+      hero.tag.scale.set(s,s,1);hero.tag.position.copy(hero.root.position);hero.tag.position.y+=.135+s*.15;
+    }
     // Rooftop name tags face the camera and grow a little with distance so they stay findable.
     for (const tag of tags) {
       const s=T.MathUtils.clamp(camera.position.distanceTo(tag.at)*.052,.30,.50);
@@ -324,7 +338,7 @@ async function start() {
       const who=pin.kind==='mine'?me:person;
       const away=who?camera.position.distanceTo(point.set(...who.p)):0;
       // Up close the rooftop tag already names the house being visited.
-      const show=who && loaded && tags.length && (pin.kind==='mine' || (person!==me && away>7));
+      const show=who && loaded && tags.length && !walking && (pin.kind==='mine' || (person!==me && away>7));
       if(show) {
         const s=T.MathUtils.clamp(away*.052,.30,.50);
         point.y+=s*.3+.02;point.project(camera);
@@ -353,7 +367,7 @@ async function start() {
         used.push(r);
       }
     }
-    if(flight)wake();
+    if(flight || (walking && moving))wake();
   }
   wake=()=>{if(!frame)frame=requestAnimationFrame(render);};
   controls.addEventListener('change',wake);
@@ -363,7 +377,7 @@ async function start() {
   renderer.domElement.addEventListener('pointerup',e=>{
     const d=dragStart;dragStart=null;
     // A tap (not a drag) on or near a rooftop tag opens that house.
-    if(!d || !d[3] || !tags.length || performance.now()-d[2]>450 || Math.hypot(e.clientX-d[0],e.clientY-d[1])>6)return;
+    if(walking || !d || !d[3] || !tags.length || performance.now()-d[2]>450 || Math.hypot(e.clientX-d[0],e.clientY-d[1])>6)return;
     const rect=view.getBoundingClientRect(),px=e.clientX-rect.left,py=e.clientY-rect.top;
     let best=null,reach=1e9;
     for (const tag of tags) {
@@ -395,6 +409,7 @@ async function start() {
   };
   view.addEventListener('keydown',e=>{
     const key=e.key;if(!['+','=','-','Home','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(key))return;
+    if(walking && key.startsWith('Arrow'))return;
     e.preventDefault();
     if(key==='Home')return choose(null);
     if(['+','=','-'].includes(key))return zoom(key==='-'?1.35:.74);
@@ -424,7 +439,7 @@ async function start() {
   }
   new ResizeObserver(resize).observe(view);resize();
   const loader=new T.GLTFLoader().setMeshoptDecoder(T.MeshoptDecoder);
-  const asset=await loader.loadAsync('./assets/town.glb',e=>{
+  asset=await loader.loadAsync('./assets/town.glb',e=>{
     if(e.lengthComputable && e.total)$('map-status').textContent='Loading the town\u2026 '+Math.round(e.loaded/e.total*100)+'%';
   });
   asset.scene.traverse(o=>{
@@ -439,27 +454,181 @@ async function start() {
   $('map-status').hidden=true;document.body.dataset.scene='ready';
   if(active)navigate(active);
   renderer.domElement.addEventListener('webglcontextrestored',()=>location.reload());
+
+  // ---- Walking: a small egg neighbour, a joystick, and a camera that follows.
+  // The bundled engine exports only what the map needed, so the base classes come from the ones it has.
+  const Geometry=Object.getPrototypeOf(T.PlaneGeometry), Group=Object.getPrototypeOf(T.Mesh), Attribute=hitPlane.attributes.position.constructor;
+  const groundAt=(x,z)=>{                       // the mansion plateau and the ramp up to it (from the town kit)
+    const y=-z;
+    if(Math.abs(x)<=.321) return y<=2.9?0:y>=3.25?.08:.08*(y-2.9)/.35;
+    return y>=2.949?.08:0;
+  };
+  const CELL=.04, HALF=9.32, SIDE=Math.ceil(HALF*2/CELL);
+  function buildGrid() {
+    // Mark every map cell that has something solid between ankle and shoulder height.
+    grid=new Uint8Array(SIDE*SIDE);
+    const a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3();
+    asset.scene.updateMatrixWorld(true);
+    asset.scene.traverse(o=>{
+      if(!o.isMesh)return;
+      const p=o.geometry.attributes.position,ix=o.geometry.index,n=ix?ix.count:p.count;
+      for(let i=0;i<n;i+=3) {
+        a.fromBufferAttribute(p,ix?ix.getX(i):i).applyMatrix4(o.matrixWorld);
+        b.fromBufferAttribute(p,ix?ix.getX(i+1):i+1).applyMatrix4(o.matrixWorld);
+        c.fromBufferAttribute(p,ix?ix.getX(i+2):i+2).applyMatrix4(o.matrixWorld);
+        const ra=a.y-groundAt(a.x,a.z),rb=b.y-groundAt(b.x,b.z),rc=c.y-groundAt(c.x,c.z);
+        if(Math.max(ra,rb,rc)<.03 || Math.min(ra,rb,rc)>.10)continue;
+        const x0=Math.max(0,Math.floor((Math.min(a.x,b.x,c.x)+HALF)/CELL)),x1=Math.min(SIDE-1,Math.floor((Math.max(a.x,b.x,c.x)+HALF)/CELL));
+        const z0=Math.max(0,Math.floor((Math.min(a.z,b.z,c.z)+HALF)/CELL)),z1=Math.min(SIDE-1,Math.floor((Math.max(a.z,b.z,c.z)+HALF)/CELL));
+        for(let z=z0;z<=z1;z++)for(let x=x0;x<=x1;x++)grid[z*SIDE+x]=1;
+      }
+    });
+  }
+  const solid=(x,z)=>Math.abs(x)>9.1 || Math.abs(z)>9.1 || grid[Math.floor((z+HALF)/CELL)*SIDE+Math.floor((x+HALF)/CELL)]===1;
+  const blocked=(x,z)=>solid(x,z)||solid(x+.028,z)||solid(x-.028,z)||solid(x,z+.028)||solid(x,z-.028);
+  function lathe(profile,segments=18) {         // rings of [radius, height, colour] spun round the upright axis
+    const pos=[],col=[],idx=[],tint=new T.Color();
+    for(const [r,y,hex] of profile) {
+      tint.set(hex);
+      for(let k=0;k<=segments;k++){const t=k/segments*Math.PI*2+Math.PI;pos.push(Math.sin(t)*r,y,Math.cos(t)*r);col.push(tint.r,tint.g,tint.b);}
+    }
+    for(let i=0;i<profile.length-1;i++)for(let k=0;k<segments;k++){const q=i*(segments+1)+k,u=q+segments+1;idx.push(q,q+1,u,u,q+1,u+1);}
+    const shape=new Geometry();
+    shape.setAttribute('position',new Attribute(pos,3));shape.setAttribute('color',new Attribute(col,3));
+    shape.setIndex(idx);shape.computeVertexNormals();return shape;
+  }
+  const ball=(r,hex,rings=7)=>lathe(Array.from({length:rings+1},(_,i)=>[Math.sin(i/rings*Math.PI)*r,r-Math.cos(i/rings*Math.PI)*r,hex]),12);
+  const eggRadius=t=>.041*Math.sin(t)*(1+.2*Math.cos(t));      // wider below the middle
+  const outfits=['#b0503f','#3f6f8f','#c58a2b','#5b7d4a','#7a4c7e','#2f7f78','#b5617f','#56609c'];
+  function buildHero() {
+    const paint=new T.MeshLambertMaterial({vertexColors:true});
+    const root=new Group(),body=new Group();
+    hero={root,body,x:0,z:0,y:0,heading:0,phase:0,suit:null,feet:[],tag:null};
+    root.add(body);
+    const eyeAt=.072,eyeR=eggRadius(Math.acos(1-2*eyeAt/.108))+.0005;
+    for(const side of [-1,1]) {
+      const eye=new T.Mesh(ball(.0058,'#2a2320'),paint);eye.scale.set(1,1.25,.6);
+      eye.position.set(Math.sin(side*.36)*eyeR,eyeAt+.008-.0058,Math.cos(.36)*eyeR-.002);body.add(eye);
+      const foot=new T.Mesh(ball(.013,'#5b3a26'),paint);foot.scale.set(1,.55,1.5);foot.position.set(side*.019,0,.006);
+      root.add(foot);hero.feet.push(foot);
+    }
+    const blob=new T.Mesh(new T.PlaneGeometry(.17,.17),shadow.material);blob.rotation.x=-Math.PI/2;blob.position.y=.004;blob.renderOrder=1;root.add(blob);
+    hero.tag=new T.Mesh(new T.PlaneGeometry(1,.3),atlas.material);
+    scene.add(root,hero.tag);
+  }
+  function dress(who) {                          // shell on top, an outfit colour picked from the username below
+    let h=7;for(const ch of who?who.u:'visitor')h=(h*31+ch.charCodeAt(0))>>>0;
+    const suit=who?.kind==='pip'?'#7a2e35':outfits[h%outfits.length],shell=who?.kind==='pip'?'#f3ead8':['#f1e2c6','#ecd3b0','#e2c39c','#f4e8d2'][h%4];
+    const rings=[];
+    for(let i=0;i<=14;i++) {
+      const t=i/14*Math.PI,y=.054*(1-Math.cos(t));
+      if(rings.length && rings.at(-1)[1]<.047 && y>=.047){rings.push([eggRadius(Math.acos(1-.047/.054)),.047,suit],[eggRadius(Math.acos(1-.047/.054)),.047,shell]);}
+      rings.push([eggRadius(t),y,y<.047?suit:shell]);
+    }
+    if(hero.suit){hero.body.remove(hero.suit);hero.suit.geometry.dispose();}
+    hero.suit=new T.Mesh(lathe(rings,20),hero.body.children[0].material);hero.suit.position.y=.008;hero.body.add(hero.suit);
+    atlas.cellUV(hero.tag.geometry,atlas.index(who));
+  }
+  const keys={};let stickX=0,stickY=0,clock=0;
+  function stride(now) {
+    const dt=Math.min(.05,(now-clock)/1000||0);clock=now;
+    let jx=stickX+(keys.right?1:0)-(keys.left?1:0),jy=stickY+(keys.up?1:0)-(keys.down?1:0);
+    const push=Math.hypot(jx,jy);moving=push>.1;
+    if(moving) {
+      if(push>1){jx/=push;jy/=push;}
+      flight=null;
+      const turn=controls.getAzimuthalAngle(),dx=-Math.sin(turn)*jy+Math.cos(turn)*jx,dz=-Math.cos(turn)*jy-Math.sin(turn)*jx;
+      const step=.62*dt;let nx=hero.x+dx*step,nz=hero.z+dz*step;
+      if(blocked(nx,nz)){ if(!blocked(nx,hero.z))nz=hero.z; else if(!blocked(hero.x,nz))nx=hero.x; else{nx=hero.x;nz=hero.z;} }
+      const want=Math.atan2(dx,dz),gap=Math.atan2(Math.sin(want-hero.heading),Math.cos(want-hero.heading));
+      hero.heading+=gap*Math.min(1,dt*12);hero.phase+=dt*15*Math.min(1,push);
+      const ny=groundAt(nx,nz),mx=nx-hero.x,my=ny-hero.y,mz=nz-hero.z;
+      hero.x=nx;hero.y=ny;hero.z=nz;
+      controls.target.x+=mx;controls.target.y+=my;controls.target.z+=mz;
+      camera.position.x+=mx;camera.position.y+=my;camera.position.z+=mz;
+    }
+    const swing=moving?Math.sin(hero.phase):0;
+    hero.root.position.set(hero.x,hero.y,hero.z);hero.root.rotation.y=hero.heading;
+    hero.body.position.y=moving?Math.abs(Math.cos(hero.phase))*.006:0;hero.body.rotation.z=swing*.09;
+    hero.feet[0].position.z=.006+swing*.016;hero.feet[1].position.z=.006-swing*.016;
+    hero.feet[0].position.y=Math.max(0,swing)*.008;hero.feet[1].position.y=Math.max(0,-swing)*.008;
+  }
+  startWalk=()=>{
+    if(!atlas)return;                            // name tags (and so the roster) are not ready yet
+    if(!grid)buildGrid();
+    if(!hero)buildHero();
+    dress(me);
+    let [x,z]=me?me.g:[0,6.2];             // visitors arrive just outside the arch
+    if(blocked(x,z)) search: for(let r=1;r<40;r++)for(let i=0;i<16;i++) {  // nearest clear spot
+      const t=i/16*Math.PI*2,tx=x+Math.cos(t)*r*CELL,tz=z+Math.sin(t)*r*CELL;
+      if(!blocked(tx,tz)){x=tx;z=tz;break search;}
+    }
+    hero.x=x;hero.z=z;hero.y=groundAt(x,z);hero.heading=me?me.face:Math.PI;hero.phase=0;
+    hero.root.visible=hero.tag.visible=true;
+    walking=true;person=null;active=null;street=false;stickX=stickY=0;for(const k in keys)keys[k]=false;
+    card();marks();remember();
+    for(const pin of $('pins').children)pin.classList.remove('current');
+    $('gesture-hint').hidden=true;
+    document.body.classList.add('walking');$('walk').setAttribute('aria-pressed','true');$('walk-label').textContent='Stop';
+    $('view-name').textContent=me?'Walking as @'+me.u:'Walking as a visitor';
+    if(mobile.matches)drawer(false,false);
+    atHome=false;clock=performance.now();
+    // Residents are met from the street with their house behind them; in the narrow lanes the camera
+    // looks along the lane from above the roofs. Visitors are followed from behind, towards the arch.
+    const lane=me && (me.kind==='terrace' || me.kind==='semi'),reach=Math.min(1.35,Math.max(1,.78/camera.aspect));
+    if(!me) fly(new T.Vector3(x,hero.y+.09,z),1.45*reach,0,1.22,38);
+    else if(lane) fly(new T.Vector3(x,hero.y+.09,z),1.5*reach,hero.heading+Math.PI/2,.86,38);
+    else fly(new T.Vector3(x,hero.y+.09,z),1.35*reach,hero.heading+.35,1.16,38);
+  };
+  stopWalk=()=>{
+    if(!walking)return;
+    walking=false;moving=false;hero.root.visible=hero.tag.visible=false;
+    document.body.classList.remove('walking');$('walk').setAttribute('aria-pressed','false');$('walk-label').textContent='Walk';
+    $('view-name').textContent='Town overview';wake();
+  };
+  const pad=$('stick'),knob=$('stick-knob');
+  const steer=e=>{
+    const r=pad.getBoundingClientRect(),reach=r.width/2-18;
+    let x=e.clientX-r.left-r.width/2,y=e.clientY-r.top-r.height/2;const far=Math.hypot(x,y);
+    if(far>reach){x*=reach/far;y*=reach/far;}
+    stickX=x/reach;stickY=-y/reach;knob.style.transform='translate('+x+'px,'+y+'px)';clock=clock||performance.now();wake();
+  };
+  const release=()=>{stickX=stickY=0;knob.style.transform='';wake();};
+  pad.addEventListener('pointerdown',e=>{e.preventDefault();pad.setPointerCapture(e.pointerId);clock=performance.now();steer(e);});
+  pad.addEventListener('pointermove',e=>{if(pad.hasPointerCapture(e.pointerId))steer(e);});
+  pad.addEventListener('pointerup',release);pad.addEventListener('pointercancel',release);pad.addEventListener('lostpointercapture',release);
+  const walkKeys={ArrowUp:'up',w:'up',W:'up',ArrowDown:'down',s:'down',S:'down',ArrowLeft:'left',a:'left',A:'left',ArrowRight:'right',d:'right',D:'right'};
+  addEventListener('keydown',e=>{
+    if(!walking || !walkKeys[e.key] || e.target.matches?.('input,textarea') || e.metaKey || e.ctrlKey)return;
+    e.preventDefault();if(!moving)clock=performance.now();keys[walkKeys[e.key]]=true;wake();
+  });
+  addEventListener('keyup',e=>{if(walkKeys[e.key])keys[walkKeys[e.key]]=false;});
+  addEventListener('blur',()=>{for(const k in keys)keys[k]=false;release();});
+  $('walk').hidden=false;
   roster.then(async list=>{
     if(!list.length)return;
     try{await document.fonts.load('650 40px "DM Sans"');}catch{}
     // One texture holds every name tag: a cream pill like the roof signs in the films.
-    const cols=6,cw=320,ch=96,rows=Math.ceil(list.length/cols);
+    const cols=6,cw=320,ch=96,cells=[...list,{u:'',kind:'pip'}],rows=Math.ceil(cells.length/cols);
     const sheet=document.createElement('canvas');sheet.width=cols*cw;sheet.height=rows*ch;
     const g=sheet.getContext('2d');g.textAlign='center';g.textBaseline='middle';
-    list.forEach((o,i)=>{
+    cells.forEach((o,i)=>{
       const x=i%cols*cw,y=Math.floor(i/cols)*ch;
       g.beginPath();g.roundRect(x+6,y+8,cw-12,ch-16,(ch-16)/2);
       g.fillStyle='#fbf3e2';g.fill();g.lineWidth=5;g.strokeStyle=kinds[o.kind].tone;g.stroke();
-      let size=44;const text='@'+o.u;
+      let size=44;const text=o.u?'@'+o.u:'Visitor';
       do{g.font='650 '+size+'px "DM Sans",Arial,sans-serif';size-=2;}while(g.measureText(text).width>cw-52 && size>18);
       g.fillStyle='#213f31';g.fillText(text,x+cw/2,y+ch/2+2);
     });
     const texture=new T.CanvasTexture(sheet);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=4;
     const material=new T.MeshBasicMaterial({map:texture,alphaTest:.5});
+    const cellUV=(shape,i)=>{
+      const uv=shape.attributes.uv,u=i%cols/cols,v=1-Math.floor(i/cols)/rows;
+      uv.setXY(0,u,v);uv.setXY(1,u+1/cols,v);uv.setXY(2,u,v-1/rows);uv.setXY(3,u+1/cols,v-1/rows);uv.needsUpdate=true;
+    };
+    atlas={material,cellUV,index:o=>o?list.indexOf(o):list.length};
     list.forEach((o,i)=>{
-      const shape=new T.PlaneGeometry(1,.3),uv=shape.attributes.uv;
-      const u=i%cols/cols,v=1-Math.floor(i/cols)/rows;
-      uv.setXY(0,u,v);uv.setXY(1,u+1/cols,v);uv.setXY(2,u,v-1/rows);uv.setXY(3,u+1/cols,v-1/rows);
+      const shape=new T.PlaneGeometry(1,.3);cellUV(shape,i);
       const mesh=new T.Mesh(shape,material);scene.add(mesh);
       tags.push({who:o,mesh,at:new T.Vector3(...o.p)});
     });

@@ -35,6 +35,7 @@
   <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 11 9-8 9 8M5 9.5V21h14V9.5M10 21v-6h4v6"/></symbol>
   <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
   <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V3m0 0L8 7m4-4 4 4M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7"/></symbol>
+  <symbol id="i-walk" viewBox="0 0 24 24"><circle cx="13" cy="4.5" r="2"/><path d="m9 21 2-6-2.5-2.5L10 8l4 1.5 2 3 3 1M10 8 7 9.5 6 13m7 8-1-5"/></symbol>
   <symbol id="i-hand" viewBox="0 0 24 24"><path d="M8 12V6a1.5 1.5 0 0 1 3 0v5-7a1.5 1.5 0 0 1 3 0v7-5a1.5 1.5 0 0 1 3 0v6-3a1.5 1.5 0 0 1 3 0v6c0 5-3 7-7 7-3 0-5-2-7-5l-3-4a1.5 1.5 0 0 1 2-2l3 2z"/></symbol>
 </defs></svg>
 <header class="topbar">
@@ -58,11 +59,14 @@
       <div class="modes" aria-label="Drag mode"><button id="orbit" aria-pressed="true"><svg><use href="#i-orbit"/></svg><span>Orbit</span></button><button id="pan" aria-pressed="false"><svg><use href="#i-hand"/></svg><span>Pan</span></button></div>
       <div class="zoom"><button id="zoom-in" aria-label="Zoom in" title="Zoom in"><svg><use href="#i-plus"/></svg></button><button id="zoom-out" aria-label="Zoom out" title="Zoom out"><svg><use href="#i-minus"/></svg></button><button id="reset" aria-label="Reset town view" title="Reset town view"><svg><use href="#i-reset"/></svg></button></div>
     </div>
+    <button id="walk" class="walk" aria-pressed="false" hidden><svg><use href="#i-walk"/></svg><span id="walk-label">Walk</span></button>
+    <div id="stick" aria-hidden="true"><span id="stick-knob"></span></div>
+    <p id="walk-hint">Move with the stick or W A S D · Drag to look around</p>
     <button id="open-places" aria-expanded="false" aria-controls="directory"><svg><use href="#i-search"/></svg>Find a house</button>
     <section id="card" aria-live="polite" hidden>
       <div class="card-head"><span id="card-lot" class="lot"></span><div class="card-who"><small id="card-eyebrow"></small><strong id="card-name"></strong><span id="card-where"></span></div><button id="card-close" class="plain" aria-label="Close"><svg><use href="#i-close"/></svg></button></div>
       <p id="card-next"></p>
-      <div class="card-actions"><button id="card-as" class="primary"><svg><use href="#i-home"/></svg><span></span></button><button id="card-street"><svg><use href="#i-eye"/></svg><span>Street view</span></button><button id="card-share" aria-label="Share this house" title="Share this house"><svg><use href="#i-share"/></svg><span>Share</span></button></div>
+      <div class="card-actions"><button id="card-as" class="primary"><svg><use href="#i-home"/></svg><span></span></button><button id="card-street"><svg><use href="#i-eye"/></svg><span>Street view</span></button><button id="card-share" aria-label="Share this house" title="Share this house"><svg><use href="#i-share"/></svg><span>Share</span></button><button id="card-leave" hidden>Not me</button></div>
     </section>
   </section>
   <button id="scrim" aria-label="Close directory" hidden></button>
@@ -76,7 +80,7 @@
   </aside>
 </main>
 <dialog id="guide"><div class="directory-title"><h2>How to explore</h2><button id="close-help" class="plain" aria-label="Close help"><svg><use href="#i-close"/></svg></button></div>
-  <dl><dt>Rotate</dt><dd>Drag with one finger or your mouse.</dd><dt>Zoom</dt><dd>Pinch, scroll, or use the + and − buttons.</dd><dt>Move around</dt><dd>Slide two fingers or choose Pan and drag.</dd><dt>Find a house</dt><dd>Search a username, or tap a name tag on a roof.</dd><dt>Explore as a neighbour</dt><dd>Open a house and choose Explore as. The town remembers you, and Share gives you a link to your house.</dd><dt>Visit a place</dt><dd>Select a map pin or a place in the directory.</dd><dt>Keyboard</dt><dd>Focus the map. Arrow keys pan, + and − zoom, and Home returns to the overview.</dd></dl>
+  <dl><dt>Rotate</dt><dd>Drag with one finger or your mouse.</dd><dt>Zoom</dt><dd>Pinch, scroll, or use the + and − buttons.</dd><dt>Move around</dt><dd>Slide two fingers or choose Pan and drag.</dd><dt>Find a house</dt><dd>Search a username, or tap a name tag on a roof.</dd><dt>Walk around</dt><dd>Choose Walk, then steer with the on-screen stick or W A S D. Drag to look around, pinch or scroll to zoom.</dd><dt>Explore as a neighbour</dt><dd>Open a house and choose Explore as. You start at your own gate, the town remembers you, and Share gives you a link to your house.</dd><dt>Visit a place</dt><dd>Select a map pin or a place in the directory.</dd><dt>Keyboard</dt><dd>Focus the map. Arrow keys pan, + and − zoom, and Home returns to the overview.</dd></dl>
 </dialog>
 <noscript><p class="noscript">Turn on JavaScript to explore Taman Pip in 3D.</p></noscript>
 </body></html>
