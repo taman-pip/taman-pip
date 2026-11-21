@@ -1,5 +1,5 @@
 // Pasar malam stall games: four short tap games played in a dialog over the town.
-// Everything is drawn on one canvas and the sounds are synthesised, so there is nothing to download.
+// Everything is drawn on one canvas; the sounds come from sound.js, so there is nothing to download.
 const W = 360, H = 400;
 const $ = id => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -7,38 +7,8 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * clamp(t, 0, 1)));
 const rgb = c => 'rgb(' + c.join(',') + ')';
 
-// ---- sound ---------------------------------------------------------------
-let audio = null, muted = false;
-try { muted = localStorage.getItem('taman-pip-mute') === '1'; } catch {}
-function voice() {
-  if (muted) return null;
-  try { audio ||= new (window.AudioContext || window.webkitAudioContext)(); if (audio.state === 'suspended') audio.resume(); } catch { return null; }
-  return audio;
-}
-function noise(length, frequency, gain, kind = 'bandpass', q = .8) {
-  const a = voice(); if (!a) return;
-  const buffer = a.createBuffer(1, Math.ceil(a.sampleRate * length), a.sampleRate), data = buffer.getChannelData(0);
-  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * i / data.length);
-  const source = a.createBufferSource(), filter = a.createBiquadFilter(), level = a.createGain();
-  source.buffer = buffer; filter.type = kind; filter.frequency.value = frequency; filter.Q.value = q; level.gain.value = gain;
-  source.connect(filter).connect(level).connect(a.destination); source.start();
-}
-function tone(frequency, length, gain = .2, kind = 'triangle', delay = 0) {
-  const a = voice(); if (!a) return;
-  const osc = a.createOscillator(), level = a.createGain(), t = a.currentTime + delay;
-  osc.type = kind; osc.frequency.value = frequency;
-  level.gain.setValueAtTime(gain, t); level.gain.exponentialRampToValueAtTime(.001, t + length);
-  osc.connect(level).connect(a.destination); osc.start(t); osc.stop(t + length + .02);
-}
-const sfx = {
-  huss: () => noise(.17, 2400 + Math.random() * 600, .55),
-  sizzle: () => noise(.3, 5200, .22, 'highpass'),
-  thunk: () => { tone(105, .13, .5, 'sine'); noise(.06, 800, .35); },
-  good: () => tone(620, .1, .22),
-  great: () => { tone(660, .09, .22); tone(990, .14, .22, 'triangle', .08); },
-  bad: () => tone(130, .28, .2, 'sawtooth'),
-  over: () => { tone(520, .14, .2); tone(390, .16, .2, 'triangle', .14); tone(260, .3, .2, 'triangle', .3); }
-};
+import { sound } from './sound.js';
+const sfx = sound;
 
 // ---- drawing helpers -------------------------------------------------------
 function griddle(g) {
@@ -69,7 +39,7 @@ function huss(api) {
     if (leave) return;
     if (side === order[step]) {
       step++; sfx.huss(); pops.push({ text: 'huss', x: W / 2 + vectors[side][0] * 86, y: 200 + vectors[side][1] * 86, t: 0 });
-      if (step === 4) { api.score(1); leave = .001; sfx.great(); }
+      if (step === 4) { api.score(1); leave = .001; sfx.great(); sfx.hussHussHuss(); }
     } else { shake = .3; api.penalty(1); sfx.bad(); pops.push({ text: '-1s', x: W / 2, y: 110, t: 0, color: '#ffb4a2' }); }
   }
   return {
@@ -109,49 +79,130 @@ function huss(api) {
   };
 }
 
-// ---- 2. Flip It: turn each patty when it is brown, serve after the second side ----
-function flip(api) {
-  const raw = [222, 140, 126], done = [124, 76, 42], burnt = [34, 28, 26], pops = [];
-  const slots = Array.from({ length: 6 }, (_, i) => ({ x: 78 + i % 3 * 102, y: 138 + Math.floor(i / 3) * 132, state: 'empty', wait: .2 + i * .35, t: 0, side: 0, spin: 0 }));
-  let elapsed = 0;
-  const lay = s => { const pace = Math.max(.55, 1 - elapsed / 80); s.state = 'cook'; s.t = 0; s.side = 0; s.ready = rand(2.0, 3.2) * pace; s.burn = s.ready + 1.7 * pace; };
+// ---- 2. Burger Special: the pasar malam way, one order at a time -------------
+// Patty on, flip it, crack the egg and spread it thin, cheese if the order wants it, fold the egg
+// round the patty, the sauces on the ticket, then into the bun.
+function special(api) {
+  const cx = W / 2, cy = 166, pops = [], sides = ['top', 'right', 'bottom', 'left'], vectors = { top: [0, -1], right: [1, 0], bottom: [0, 1], left: [-1, 0] };
+  const tray = [
+    { id: 'patty', name: 'Patty', x: 15, y: 278, w: 78, h: 48 }, { id: 'egg', name: 'Egg', x: 99, y: 278, w: 78, h: 48 },
+    { id: 'cheese', name: 'Cheese', x: 183, y: 278, w: 78, h: 48 }, { id: 'bun', name: 'Bun', x: 267, y: 278, w: 78, h: 48 },
+    { id: 'chili', name: 'Chili', x: 15, y: 332, w: 106, h: 48 }, { id: 'mayo', name: 'Mayo', x: 127, y: 332, w: 106, h: 48 },
+    { id: 'pepper', name: 'Black pepper', x: 239, y: 332, w: 106, h: 48 }
+  ];
+  const raw = [222, 140, 126], done = [124, 76, 42], burnt = [34, 28, 26];
+  let order, stage, t, ready, burn, spin, egg, cheese, folds, foldOrder, sauced, leave, shake = 0, pulse = 0, press = null;
+  function next() {
+    const sauces = ['chili', 'mayo', 'pepper'].filter(() => Math.random() < .6);
+    order = { cheese: Math.random() < .6, sauces: sauces.length ? sauces : ['chili'] };
+    stage = 'patty'; t = 0; spin = 0; egg = 0; cheese = false; folds = { top: 0, right: 0, bottom: 0, left: 0 }; foldOrder = []; sauced = []; leave = 0;
+  }
+  next();
+  const wrong = text => { shake = .3; api.penalty(1); sfx.bad(); pops.push({ text: text || '-1s', x: cx, y: 96, t: 0, color: '#ffb4a2', size: 16 }); };
+  const hint = () => ({ patty: 'Put a patty on', cook: t < ready ? 'Wait for the green ring…' : 'Flip it now', egg: 'Crack an egg', cheese: 'Add the cheese',
+    fold: 'Fold the egg: tap the arrow', sauce: 'Sauce: ' + order.sauces.filter(o => !sauced.includes(o)).join(', '), bun: 'Into the bun' }[stage]);
+  function useTray(id) {
+    press = { id, t: .18 };
+    if (stage === 'patty' && id === 'patty') { stage = 'cook'; t = 0; ready = rand(1.3, 1.9); burn = ready + 1.7; sfx.sizzle(); }
+    else if (stage === 'egg' && id === 'egg') { egg = .01; sfx.sizzle(); stage = order.cheese ? 'cheese' : 'fold'; if (stage === 'fold') foldOrder = [...sides].sort(() => Math.random() - .5); }
+    else if (stage === 'cheese' && id === 'cheese') { cheese = true; sfx.good(); stage = 'fold'; foldOrder = [...sides].sort(() => Math.random() - .5); }
+    else if (stage === 'sauce' && order.sauces.includes(id) && !sauced.includes(id)) { sauced.push(id); sfx.huss(); if (sauced.length === order.sauces.length) stage = 'bun'; }
+    else if (stage === 'bun' && id === 'bun') { api.score(1); sfx.great(); leave = .001; pops.push({ text: 'Siap! +1', x: cx, y: 96, t: 0 }); }
+    else wrong(stage === 'sauce' && ['chili', 'mayo', 'pepper'].includes(id) ? 'not on the order' : '-1s');
+  }
+  function useGriddle(x, y) {
+    if (stage === 'cook') {
+      if (Math.hypot(x - cx, y - cy) > 60) return;
+      if (t < ready) { pops.push({ text: 'not yet', x: cx, y: cy - 56, t: 0, size: 15 }); return; }
+      spin = 1; sfx.sizzle(); stage = 'egg';
+    } else if (stage === 'fold') {
+      const dx = x - cx, dy = y - cy, side = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'bottom' : 'top');
+      const want = foldOrder.find(o => !folds[o]);
+      if (side === want) { folds[side] = .01; sfx.huss(); pops.push({ text: 'huss', x: cx + vectors[side][0] * 70, y: cy + vectors[side][1] * 70, t: 0 }); if (sides.every(o => folds[o])) stage = 'sauce'; }
+      else wrong();
+    }
+  }
   return {
-    time: 45, lives: 3, unit: 'burgers served',
+    time: 60, unit: 'burger specials served',
     tap(x, y) {
-      const s = slots.find(o => Math.hypot(o.x - x, o.y - y) < 50); if (!s || s.state !== 'cook') return;
-      if (s.t < s.ready) { s.nudge = .25; pops.push({ text: 'not yet', x: s.x, y: s.y - 40, t: 0, size: 15 }); return; }
-      if (s.side === 0) { s.side = 1; s.t = 0; s.spin = 1; sfx.sizzle(); const pace = Math.max(.55, 1 - elapsed / 80); s.ready = rand(1.6, 2.4) * pace; s.burn = s.ready + 1.6 * pace; }
-      else { api.score(1); sfx.good(); pops.push({ text: '+1', x: s.x, y: s.y - 40, t: 0 }); s.state = 'empty'; s.wait = rand(.4, 1.1); }
+      if (leave) return;
+      const button = tray.find(o => x >= o.x && x <= o.x + o.w && y >= o.y && y <= o.y + o.h);
+      if (button) useTray(button.id); else if (y < 272) useGriddle(x, y);
     },
     update(dt) {
-      elapsed += dt;
-      for (const s of slots) {
-        s.spin = Math.max(0, s.spin - dt * 4); s.nudge = Math.max(0, (s.nudge || 0) - dt);
-        if (s.state === 'empty') { s.wait -= dt; if (s.wait <= 0) lay(s); }
-        else if (s.state === 'cook') { s.t += dt; if (s.t >= s.burn) { s.state = 'burnt'; s.wait = .9; api.miss(); sfx.bad(); pops.push({ text: 'burnt!', x: s.x, y: s.y - 40, t: 0, color: '#ffb4a2' }); } }
-        else { s.wait -= dt; if (s.wait <= 0) { s.state = 'empty'; s.wait = rand(.3, .8); } }
-      }
+      pulse += dt; shake = Math.max(0, shake - dt); spin = Math.max(0, spin - dt * 4);
+      if (press) { press.t -= dt; if (press.t <= 0) press = null; }
+      if (egg) egg = Math.min(1, egg + dt * 4);
+      for (const o of sides) if (folds[o]) folds[o] = Math.min(1, folds[o] + dt * 9);
+      if (stage === 'cook') { t += dt; if (t >= burn) { sfx.bad(); api.penalty(2); pops.push({ text: 'burnt! -2s', x: cx, y: 96, t: 0, color: '#ffb4a2', size: 16 }); stage = 'patty'; } }
+      if (leave) { leave += dt; if (leave > .5) next(); }
     },
     draw(g, dt) {
-      griddle(g);
-      for (const s of slots) {
-        g.fillStyle = '#00000022'; g.beginPath(); g.ellipse(s.x, s.y + 6, 44, 40, 0, 0, 7); g.fill();
-        if (s.state === 'empty') { g.strokeStyle = '#ffffff18'; g.lineWidth = 2; g.setLineDash([6, 7]); g.beginPath(); g.arc(s.x, s.y, 40, 0, 7); g.stroke(); g.setLineDash([]); continue; }
-        const cooked = s.state === 'burnt' ? burnt : s.t < s.ready ? mix(raw, done, s.t / s.ready) : mix(done, burnt, (s.t - s.ready) / (s.burn - s.ready) * .9);
-        const squash = 1 - Math.sin(s.spin * Math.PI) * .85, wobble = s.nudge ? Math.sin(s.nudge * 70) * 4 : 0;
-        g.save(); g.translate(s.x + wobble, s.y - Math.sin(s.spin * Math.PI) * 26); g.scale(1, squash);
-        g.fillStyle = rgb(mix(cooked, [0, 0, 0], .28)); g.beginPath(); g.arc(0, 4, 41, 0, 7); g.fill();
-        g.fillStyle = rgb(cooked); g.beginPath(); g.arc(0, 0, 40, 0, 7); g.fill();
-        g.strokeStyle = rgb(mix(cooked, [0, 0, 0], .35)); g.lineWidth = 3;
-        for (const off of [-14, 0, 14]) { g.beginPath(); g.moveTo(-24, off); g.lineTo(24, off + 6); g.stroke(); }
+      g.fillStyle = '#e8dcc4'; g.fillRect(0, 0, W, H);
+      // the order ticket
+      g.fillStyle = '#fffdf4'; g.beginPath(); g.roundRect(14, 8, W - 28, 44, 10); g.fill();
+      g.textBaseline = 'middle'; g.textAlign = 'left'; g.fillStyle = '#58695f'; g.font = '700 11px "DM Sans",Arial,sans-serif'; g.fillText('ORDER', 26, 21);
+      g.fillStyle = '#213f31'; g.font = '700 15px "DM Sans",Arial,sans-serif';
+      g.fillText('Special' + (order.cheese ? ' + cheese' : ', no cheese') + ' · ' + order.sauces.map(o => o === 'pepper' ? 'black pepper' : o).join(', '), 26, 38);
+      // griddle
+      g.fillStyle = '#2f3537'; g.beginPath(); g.roundRect(14, 58, W - 28, 212, 20); g.fill();
+      g.fillStyle = '#3d4447'; g.beginPath(); g.roundRect(22, 66, W - 44, 196, 14); g.fill();
+      const ox = cx + (shake ? Math.sin(shake * 60) * 5 : 0) + (leave ? leave * leave * 1300 : 0);
+      if (egg) {                                     // the egg spread thin
+        const half = 30 + egg * 44;
+        g.fillStyle = '#f6dc8a'; g.beginPath(); g.roundRect(ox - half, cy - half, half * 2, half * 2, 22); g.fill();
+        g.fillStyle = '#fbefc4'; g.beginPath(); g.roundRect(ox - half + 8, cy - half + 8, half * 2 - 16, half * 2 - 16, 16); g.fill();
+      }
+      if (stage !== 'patty') {                       // the patty, split open and seasoned
+        const colour = stage === 'cook' ? (t < ready ? mix(raw, done, t / ready) : mix(done, burnt, (t - ready) / (burn - ready) * .9)) : done;
+        g.save(); g.translate(ox, cy - Math.sin(spin * Math.PI) * 24); g.scale(1, 1 - Math.sin(spin * Math.PI) * .85);
+        g.fillStyle = rgb(mix(colour, [0, 0, 0], .28)); g.beginPath(); g.arc(0, 4, 37, 0, 7); g.fill();
+        g.fillStyle = rgb(colour); g.beginPath(); g.arc(0, 0, 36, 0, 7); g.fill();
+        g.strokeStyle = rgb(mix(colour, [0, 0, 0], .35)); g.lineWidth = 3;
+        for (const off of [-12, 0, 12]) { g.beginPath(); g.moveTo(-21, off); g.lineTo(21, off + 5); g.stroke(); }
         g.restore();
-        if (s.state === 'cook' && s.t >= s.ready) {  // the ring empties as the patty heads for burnt
-          const left = 1 - (s.t - s.ready) / (s.burn - s.ready);
+        if (stage === 'cook' && t >= ready) {
+          const left = 1 - (t - ready) / (burn - ready);
           g.strokeStyle = left > .4 ? '#a8e08a' : '#ffb35c'; g.lineWidth = 6; g.lineCap = 'round';
-          g.beginPath(); g.arc(s.x, s.y, 49, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left); g.stroke(); g.lineCap = 'butt';
-          label(g, s.side ? 'serve' : 'flip', s.x, s.y + 62, 15);
+          g.beginPath(); g.arc(ox, cy, 46, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left); g.stroke(); g.lineCap = 'butt';
         }
-        if (s.state === 'burnt') { g.fillStyle = '#9aa0a055'; for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(s.x - 14 + i * 14, s.y - 34 - (1 - s.wait) * 22 - i * 6, 9 + i * 2, 0, 7); g.fill(); } }
+      }
+      if (cheese) { g.save(); g.translate(ox, cy); g.rotate(.5); g.fillStyle = '#f2b632'; g.beginPath(); g.roundRect(-25, -25, 50, 50, 5); g.fill(); g.fillStyle = '#f7cf62'; g.beginPath(); g.roundRect(-20, -20, 40, 40, 4); g.fill(); g.restore(); }
+      for (const o of sides) {                       // the folded flaps
+        if (!folds[o]) continue;
+        const [vx, vy] = vectors[o], half = 74, reach = folds[o] * 44;
+        g.fillStyle = '#f3d77c'; g.beginPath();
+        if (vx) g.roundRect(vx > 0 ? ox + half - 32 - reach : ox - half, cy - half + 6, 32 + reach, half * 2 - 12, 14);
+        else g.roundRect(ox - half + 6, vy > 0 ? cy + half - 32 - reach : cy - half, half * 2 - 12, 32 + reach, 14);
+        g.fill(); g.strokeStyle = '#d9b655'; g.lineWidth = 2; g.stroke();
+      }
+      const squiggle = (colour, shift) => { g.strokeStyle = colour; g.lineWidth = 6; g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath(); for (let i = 0; i <= 8; i++) { const x = ox - 48 + i * 12, y = cy + shift + (i % 2 ? 9 : -9); i ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); g.lineCap = 'butt'; };
+      if (sauced.includes('chili')) squiggle('#c8321f', -22);
+      if (sauced.includes('mayo')) squiggle('#fff7df', 4);
+      if (sauced.includes('pepper')) { g.fillStyle = '#2b2622'; for (let i = 0; i < 16; i++) { g.beginPath(); g.arc(ox - 46 + (i * 37 % 92), cy + 22 + (i * 13 % 24), 2.4, 0, 7); g.fill(); } }
+      if (leave) {                                   // top bun on, and off it goes
+        g.fillStyle = '#9c5f25'; g.beginPath(); g.ellipse(ox, cy + 6, 70, 58, 0, 0, 7); g.fill();
+        g.fillStyle = '#c98a3e'; g.beginPath(); g.ellipse(ox, cy, 68, 54, 0, 0, 7); g.fill();
+        g.fillStyle = '#f6e7c3'; for (const [x, y] of [[-30, -18], [-6, -30], [22, -20], [-18, 8], [10, 2], [34, 10], [-2, 26]]) { g.beginPath(); g.ellipse(ox + x, cy + y, 4, 2.4, x, 0, 7); g.fill(); }
+      }
+      if (stage === 'fold' && !leave) {              // arrow on the flap to fold next
+        const want = foldOrder.find(o => !folds[o]), [vx, vy] = vectors[want], bob = Math.sin(pulse * 9) * 5, ax = ox + vx * (96 - bob), ay = cy + vy * (90 - bob);
+        g.save(); g.translate(ax, ay); g.rotate(Math.atan2(-vy, -vx));
+        g.fillStyle = '#fbf3e2'; g.strokeStyle = '#2c533d'; g.lineWidth = 4; g.beginPath();
+        g.moveTo(15, 0); g.lineTo(-8, -14); g.lineTo(-8, -6); g.lineTo(-19, -6); g.lineTo(-19, 6); g.lineTo(-8, 6); g.lineTo(-8, 14); g.closePath(); g.stroke(); g.fill(); g.restore();
+      }
+      if (!leave) label(g, hint(), cx, 250, 14);
+      // the tray
+      const wanted = { patty: stage === 'patty', egg: stage === 'egg', cheese: stage === 'cheese', bun: stage === 'bun', chili: stage === 'sauce' && order.sauces.includes('chili') && !sauced.includes('chili'), mayo: stage === 'sauce' && order.sauces.includes('mayo') && !sauced.includes('mayo'), pepper: stage === 'sauce' && order.sauces.includes('pepper') && !sauced.includes('pepper') };
+      const swatch = { patty: '#7a4a2a', egg: '#f6dc8a', cheese: '#f2b632', bun: '#c98a3e', chili: '#c8321f', mayo: '#fff7df', pepper: '#2b2622' };
+      for (const o of tray) {
+        const down = press?.id === o.id ? 2 : 0;
+        g.fillStyle = '#00000022'; g.beginPath(); g.roundRect(o.x, o.y + 3, o.w, o.h, 11); g.fill();
+        g.fillStyle = wanted[o.id] ? '#fffdf4' : '#f1ead8'; g.beginPath(); g.roundRect(o.x, o.y + down, o.w, o.h, 11); g.fill();
+        if (wanted[o.id]) { g.strokeStyle = '#2c533d'; g.lineWidth = 2.5; g.stroke(); }
+        g.fillStyle = swatch[o.id]; g.strokeStyle = '#00000030'; g.lineWidth = 1; g.beginPath(); g.arc(o.x + 17, o.y + o.h / 2 + down, 8, 0, 7); g.fill(); g.stroke();
+        g.fillStyle = '#213f31'; g.font = '700 ' + (o.name.length > 8 ? 11 : 13.5) + 'px "DM Sans",Arial,sans-serif'; g.textAlign = 'left'; g.textBaseline = 'middle';
+        g.fillText(o.name, o.x + 30, o.y + o.h / 2 + 1 + down);
       }
       floaters(pops, g, dt);
     }
@@ -269,8 +320,8 @@ function gepuk(api) {
 export const games = [
   { id: 'huss', name: 'Huss Huss Huss', stall: 'Burger stall', tone: '#b0503f', make: huss,
     how: 'Fold the egg round the patty. Tap the side the arrow points at, four folds a burger. A wrong fold costs a second.' },
-  { id: 'flip', name: 'Flip It', stall: 'Burger stall', tone: '#7a4a2a', make: flip,
-    how: 'Tap a patty when its ring turns green to flip it, then again to serve. Three burnt patties and the grill closes.' },
+  { id: 'special', name: 'Burger Special', stall: 'Burger stall', tone: '#7a4a2a', make: special,
+    how: 'Make each order the pasar malam way: patty on, flip it on the green ring, crack the egg, cheese if they asked, fold the egg round it, the sauces on the ticket, then the bun. Mistakes cost a second.' },
   { id: 'wok', name: 'Wok Hei', stall: 'Fried rice stall', tone: '#c58a2b', make: wok,
     how: 'Tap anywhere as the ring meets the rim of the wok to toss the nasi goreng. Dead on scores double. Three misses and the rice is on the floor.' },
   { id: 'gepuk', name: 'Gepuk!', stall: 'Ayam Gepuk Pipchun', tone: '#b5382a', make: gepuk,
@@ -314,9 +365,10 @@ function panel(mode) {
   }
 }
 function finish() {
-  cancelAnimationFrame(loop); loop = 0; sfx.over();
+  cancelAnimationFrame(loop); loop = 0; sfx.over(); sound.music('town');
   try { if (score > best(current.id)) localStorage.setItem('taman-pip-best-' + current.id, score); } catch {}
   panel('over');
+  dispatchEvent(new CustomEvent('taman-game', { detail: { id: current.id, score } }));
 }
 const api = {
   score(n) { score += n; hud(); },
@@ -332,7 +384,7 @@ function frame(now) {
   loop = requestAnimationFrame(frame);
 }
 function begin() {
-  voice();
+  sound.unlock(); sound.music('game'); sound.stall(true);
   play = current.make(api); score = 0; lives = play.lives || 0; left = play.time || 0;
   panel('play'); hud(); last = performance.now(); cancelAnimationFrame(loop); loop = requestAnimationFrame(frame);
 }
@@ -343,8 +395,9 @@ function pick(game) {
 }
 export function openGames(id, as = '') {
   player = as;
-  const game = games.find(o => o.id === id);
+  const game = games.find(o => o.id === (id === 'flip' ? 'special' : id));   // 'flip' was this game's first name
   if (!box.open) box.showModal();
+  sound.stall(true);
   if (game) pick(game); else { cancelAnimationFrame(loop); loop = 0; current = null; play = null; panel('menu'); }
 }
 for (const game of games) {
@@ -357,13 +410,10 @@ for (const game of games) {
 $('arcade-go').onclick = begin;
 $('arcade-back').onclick = () => openGames(null, player);
 $('arcade-close').onclick = () => box.close();
-box.addEventListener('close', () => { cancelAnimationFrame(loop); loop = 0; });
+box.addEventListener('close', () => { cancelAnimationFrame(loop); loop = 0; sound.music('town'); sound.stall(false); });
 box.addEventListener('click', event => { if (event.target === box && state !== 'play') box.close(); });
-$('arcade-sound').setAttribute('aria-pressed', String(!muted));
-$('arcade-sound').onclick = () => {
-  muted = !muted; $('arcade-sound').setAttribute('aria-pressed', String(!muted));
-  try { localStorage.setItem('taman-pip-mute', muted ? '1' : '0'); } catch {}
-};
+sound.onChange(muted => $('arcade-sound').setAttribute('aria-pressed', String(!muted)));
+$('arcade-sound').onclick = () => sound.setMuted(!sound.muted);
 $('arcade-share').onclick = async () => {
   const url = location.origin + location.pathname + '?game=' + current.id;
   const text = (player ? '@' + player + ' scored ' : 'I scored ') + score + ' in ' + current.name + ' at the Taman Pip pasar malam. Beat that:';

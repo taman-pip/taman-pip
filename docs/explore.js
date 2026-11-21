@@ -1,4 +1,5 @@
 import { games, openGames } from './games.js';
+import { sound } from './sound.js';
 const places = [
   { id: 'market', name: 'Pasar Malam', type: 'Night market', tone: '#bb6845', point: [5.45, .16, 2.62], distance: 2.75, angle: 1.0, tilt: 1.03 },
   { id: 'gate', name: 'Town entrance', type: 'Welcome arch', tone: '#658052', point: [0, .15, 5.75], distance: 1.95, angle: .20, tilt: 1.22 },
@@ -20,30 +21,98 @@ const kinds = {
   stall: {label: 'Fried rice stall', where: 'Pasar Malam', tone: '#bb6845', near: 0, group: 'Pasar Malam'},
   pip: {label: 'Chairman\u2019s house', where: 'Town entrance', tone: '#7a2e35', near: 0, group: 'Chairman'}
 };
-// Easter eggs from the earlier films. Each is found once; the count is kept on this device.
+// Easter eggs from the earlier films. Finds are kept on this device (localStorage) with the day they were
+// found, and listed in the Easter eggs album with a link to the reel each one comes from.
+// `reel` is the reel's own link where the project has it; the rest open the profile until their links are added.
+const PROFILE = 'https://www.instagram.com/retiredpip/';
+const TAMAN_1 = 'https://www.instagram.com/reel/Df4OHTXhe72/';      // plain reel links only, no tracking parameters
+const REEL = {1: 'https://www.instagram.com/reel/Dfm3nabT8e9/', 2: 'https://www.instagram.com/reel/DfoHvA8T-Gz/', 3: 'https://www.instagram.com/reel/DfqkWWFzACo/',
+  costco: 'https://www.instagram.com/reel/DftJnkDzPE7/', disneyland: 'https://www.instagram.com/reel/Dfvx5SHzSM4/', moon: 'https://www.instagram.com/reel/DfypGdpzjBQ/', roadster: 'https://www.instagram.com/reel/Df0-WewzDH1/',
+  taman2: 'https://www.instagram.com/reel/Df86bHYBMBs/', taman3: 'https://www.instagram.com/reel/Df_NYePMCaq/'};   // from the user
 const eggs = {
-  moon: {from: 'Episode 5 \u00b7 The Town That Never Looked at the Moon', line: '\u201cAnd the moon looked back.\u201d', note: 'Quick. Use a mirror.'},
-  roadster: {from: 'Episode 6 \u00b7 Pip\u2019s Flying Roadster', line: '\u201cPip\u2026 can it go Genting?\u201d', note: 'Toll not paid.'},
-  gate: {from: 'Taman Pip \u00b7 Episode 1', line: 'Please don\u2019t park at this gate.', note: 'Not even for \u201c5 MINIT\u201d.'},
-  guard: {from: 'Taman Pip \u00b7 Episode 1', line: '\u201cWhy their house bigger than mine?\u201d', note: 'The mansions have their own guardhouse. It has one plastic chair.'},
-  eggs: {from: 'Episode 3 \u00b7 Costco Malaysia', line: '\u201c\u2026Eggs.\u201d', note: 'He only came in for one thing.'},
-  look: {from: 'Episode 4 \u00b7 What If Malaysia Got Disneyland Before Singapore?', line: '\u201cI\u2019m just here to look.\u201d', note: 'Castle view, mah. Breakfast extra.'},
-  seat: {from: 'Imagine This Ah\u2026 \u00b7 The Queue That Never Ended', line: 'Reserved.', note: 'A tissue packet is holding this seat.'}
+  water: {from: 'Episode 1 \u00b7 Retired Pip', line: '\u201cIntroducing\u2026 WATER!\u201d', note: 'Now one hundred percent wetter.', hint: 'Walk down to the pond.', reel: REEL[1]},
+  sale: {from: 'Episode 2 \u00b7 Pip vs 11.11', line: '\u201cAdd to cart only.\u201d', note: 'It\u2019s the twelfth. The sale did not get the memo.', hint: 'Search for the biggest sale date of the year.', reel: REEL[2]},
+  logo: {from: 'Episode 3 · Just a Quick Favour', line: '“Can you make the logo bigger?”', note: '“I’m supposed to be retired.”', hint: 'Someone thinks the logo could be bigger. Give it a few taps.', reel: REEL[3]},
+  moon: {from: 'The Town That Never Looked at the Moon', line: '“And the moon looked back.”', note: 'Quick. Use a mirror.', hint: 'Look low in the northern sky.', reel: REEL.moon},
+  roadster: {from: 'Pip’s Flying Roadster', line: '“Pip… can it go Genting?”', note: 'Toll not paid.', hint: 'Something red is parked near the entrance. Something red also flies.', reel: REEL.roadster},
+  gate: {from: 'Taman Pip · Episode 1', line: 'Please don’t park at this gate.', note: 'Not even for “5 MINIT”.', hint: 'Walk up to the chairman’s gate.', reel: TAMAN_1},
+  guard: {from: 'Taman Pip · Episode 1', line: '“Why their house bigger than mine?”', note: 'The mansions have their own guardhouse. It has one plastic chair.', hint: 'Walk up to where the mansions begin.', reel: TAMAN_1},
+  pipchun: {from: 'Taman Pip · Episode 2', line: '“Eh, Ayam Gepuk Pipchun!”', note: 'The first stall in the pasar malam.', hint: 'Play a round of Gepuk! at the stalls.', reel: REEL.taman2},
+  huss: {from: 'Taman Pip · Episode 3', line: 'Huss huss huss.', note: 'A very suspicious sound from behind the counter.', hint: 'Wrap or serve a burger at the stall.', reel: REEL.taman3},
+  eggs: {from: 'What If Costco Opened in Malaysia?', line: '“…Eggs.”', note: 'He only came in for one thing.', hint: 'Search for the one thing Pip went shopping for.', reel: REEL.costco},
+  look: {from: 'What If Malaysia Got Disneyland Before Singapore?', line: '“I’m just here to look.”', note: 'Castle view, mah. Breakfast extra.', hint: 'Search for a theme park Malaysia does not have.', reel: REEL.disneyland},
+  seat: {from: 'Imagine This Ah… · The Queue That Never Ended', line: 'Reserved.', note: 'A tissue packet is holding this seat.', hint: 'Walk to where the bus stops.', reel: '', other: true}
 };
-const eggWords = {eggs: 'eggs', egg: 'eggs', telur: 'eggs', disneyland: 'look', castle: 'look', moon: 'moon', bulan: 'moon', genting: 'roadster', roadster: 'roadster'};
-let eggsFound = [];
-try { eggsFound = JSON.parse(localStorage.getItem('taman-pip-eggs') || '[]').filter(id => eggs[id]); } catch {}
+const eggWords = {water: 'water', air: 'water', '11.11': 'sale', '1111': 'sale', '11/11': 'sale', sale: 'sale', eggs: 'eggs', egg: 'eggs', telur: 'eggs', disneyland: 'look', castle: 'look', moon: 'moon', bulan: 'moon', genting: 'roadster', roadster: 'roadster'};
+let eggsFound = {};   // id -> time found
+try {
+  const saved = JSON.parse(localStorage.getItem('taman-pip-eggs') || '{}');
+  if (Array.isArray(saved)) for (const id of saved) eggsFound[id] = Date.now();      // the first version kept a plain list
+  else for (const id in saved) eggsFound[id] = saved[id];
+  for (const id in eggsFound) if (!eggs[id]) delete eggsFound[id];
+} catch {}
 let eggTimer = 0, lastWord = '';
-function eggCount() { $('egg-count').textContent = eggsFound.length + ' of ' + Object.keys(eggs).length + ' found'; }
+const eggTotal = Object.keys(eggs).length, eggTally = () => Object.keys(eggsFound).length;
+const saveEggs = () => { try { localStorage.setItem('taman-pip-eggs', JSON.stringify(eggsFound)); } catch {} };
+function eggCount() {
+  const text = eggTally() + ' of ' + eggTotal + ' found';
+  $('egg-count').textContent = text; $('album-count').textContent = text; $('album-open-count').textContent = eggTally() + ' of ' + eggTotal;
+}
+function album() {
+  $('album-list').replaceChildren();
+  for (const id in eggs) {
+    const egg = eggs[id], when = eggsFound[id], row = document.createElement('li');
+    row.className = when ? 'got' : 'missing';
+    const from = document.createElement('small'), line = document.createElement('strong'), note = document.createElement('span');
+    if (when) {
+      from.textContent = egg.from; line.textContent = egg.line; note.textContent = egg.note;
+      const foot = document.createElement('div'), day = document.createElement('time');
+      day.textContent = 'Found ' + new Date(when).toLocaleDateString(undefined, {day: 'numeric', month: 'short', year: 'numeric'});
+      foot.append(day);
+      if (egg.reel || !egg.other) {
+        const link = document.createElement('a'); link.href = egg.reel || PROFILE; link.target = '_blank'; link.rel = 'noopener';
+        link.textContent = egg.reel ? 'Watch the reel' : 'Find it on @retiredpip';
+        foot.append(link);
+      }
+      row.append(from, line, note, foot);
+    } else { from.textContent = 'Not found yet'; line.textContent = '? ? ?'; note.textContent = egg.hint; row.append(from, line, note); }
+    $('album-list').append(row);
+  }
+  $('album-reset').hidden = !eggTally();
+  eggCount();
+}
 function found(id) {
-  const egg = eggs[id], fresh = !eggsFound.includes(id);
-  if (fresh) { eggsFound.push(id); try { localStorage.setItem('taman-pip-eggs', JSON.stringify(eggsFound)); } catch {} }
+  const egg = eggs[id], fresh = !eggsFound[id];
+  if (fresh) { eggsFound[id] = Date.now(); saveEggs(); }
   $('egg-from').textContent = egg.from; $('egg-line').textContent = egg.line; $('egg-note').textContent = egg.note;
-  $('egg-tally').textContent = (fresh ? 'Easter egg found \u00b7 ' : 'Found before \u00b7 ') + eggsFound.length + ' of ' + Object.keys(eggs).length;
-  $('egg').hidden = false; eggCount();
+  $('egg-tally').textContent = (fresh ? 'Easter egg found · ' : 'Found before · ') + eggTally() + ' of ' + eggTotal + ' · tap to see them all';
+  $('egg').hidden = false; eggCount(); sound.great();
   clearTimeout(eggTimer); eggTimer = setTimeout(() => { $('egg').hidden = true; }, 7000);
 }
-$('egg').onclick = () => { $('egg').hidden = true; };
+function openAlbum() { album(); if ($('guide').open) $('guide').close(); if (!$('album').open) $('album').showModal(); }
+$('egg').onclick = () => { $('egg').hidden = true; openAlbum(); };
+$('album-open').onclick = $('guide-album').onclick = openAlbum;
+$('album-close').onclick = () => $('album').close();
+$('album').onclick = event => { if (event.target === $('album')) $('album').close(); };
+$('album-reset').onclick = () => { if (confirm('Forget every easter egg found on this device?')) { eggsFound = {}; saveEggs(); album(); } };
+sound.onChange(muted => $('sound').setAttribute('aria-pressed', String(!muted)));
+$('sound').onclick = () => { sound.setMuted(!sound.muted); if (!sound.muted) sound.unlock(); };
+// Finishing a stall game can earn an egg; it is shown once the game is closed, so it is not hidden behind it.
+let owed = [];
+addEventListener('taman-game', event => {
+  const {id, score} = event.detail, egg = id === 'gepuk' ? 'pipchun' : (id === 'huss' || id === 'special') && score > 0 ? 'huss' : null;
+  if (egg && !eggsFound[egg] && !owed.includes(egg)) owed.push(egg);
+});
+$('arcade').addEventListener('close', () => { const egg = owed.shift(); if (egg) found(egg); owed = []; });
+// The logo gets bigger if you ask three times (episode 3).
+let logoTaps = 0, logoTimer = 0;
+document.querySelector('.brand').onclick = event => {
+  event.preventDefault();
+  clearTimeout(logoTimer); logoTimer = setTimeout(() => { logoTaps = 0; }, 1500);
+  if (++logoTaps < 3) return;
+  logoTaps = 0; document.body.classList.add('big-logo'); found('logo');
+  setTimeout(() => document.body.classList.remove('big-logo'), 6000);
+};
 eggCount();
 const params = new URLSearchParams(location.search);
 let people = [];
@@ -374,7 +443,7 @@ async function start() {
     }
     return false;
   }
-  let props=null, busy=false, tappable=[];
+  let props=null, busy=false, tappable=[], heard=0;
   let framed='', grid=null, hero=null, atlas=null, moving=false, asset=null;
   let frame=0, flight=null, loaded=false, atHome=true, dragStart=null;
   const homeTarget = new T.Vector3(0,.13,-.15);
@@ -407,6 +476,8 @@ async function start() {
     }
     if(walking)stride(now);
     props?.(now);
+    const hear=T.MathUtils.clamp(1.25-Math.hypot(controls.target.x-5.45,controls.target.z-2.7)/3.2,0,1)*T.MathUtils.clamp(1.6-controls.getDistance()/9,0,1);
+    if(Math.abs(hear-heard)>.04 || (hear===0)!==(heard===0)){heard=hear;sound.market(hear);}
     shift.copy(controls.target);controls.target.x=T.MathUtils.clamp(shift.x,-9.15,9.15);controls.target.z=T.MathUtils.clamp(shift.z,-9.15,9.15);
     controls.target.y=T.MathUtils.clamp(shift.y,0,1.7);
     camera.position.sub(shift.sub(controls.target));
@@ -647,7 +718,7 @@ async function start() {
     atlas.cellUV(hero.tag.geometry,atlas.index(who));
   }
   const pipGate=people.find(o=>o.kind==='pip')?.g||[-.28,5.05];
-  const spots=[{id:'gate',x:pipGate[0],z:pipGate[1],r:.2},{id:'guard',x:.62,z:-3.1,r:.5},{id:'seat',x:.45,z:3.5,r:.3}];
+  const spots=[{id:'gate',x:pipGate[0],z:pipGate[1],r:.2},{id:'guard',x:.62,z:-3.1,r:.5},{id:'seat',x:.45,z:3.5,r:.3},{id:'water',x:7.3,z:2.2,r:1.35}];
   // ---- Things that move: the boom gates, the guard, and Pip's roadster.
   const tint=new T.Color(), flat=new T.MeshLambertMaterial({vertexColors:true,side:2});
   function prism(out,profile,x0,x1,hex) {        // a [forward, up] outline pushed across x0..x1
@@ -707,13 +778,13 @@ async function start() {
   }
   roadster.scale.setScalar(.6);roadster.position.copy(home);roadster.rotation.y=Math.PI;scene.add(roadster);
   let hop=null, propClock=0;
-  tappable.push([roadster,'roadster',.3,()=>{if(!hop){hop={start:performance.now(),length:6200,last:home.clone()};wake();}}]);
+  tappable.push([roadster,'roadster',.3,()=>{if(!hop){hop={start:performance.now(),length:6200,last:home.clone()};sound.whoosh();wake();}}]);
   props=now=>{
     const dt=Math.min(.05,(now-propClock)/1000||0);propClock=now;busy=false;
     for(const gate of gates) {
       const near=walking && hero && Math.hypot(hero.x-gate.x,hero.z-gate.z)<.8;
       const goal=near?1:0;
-      if(near && gate.open===0)gate.hop=.45;
+      if(near && gate.open===0){gate.hop=.45;sound.good();}
       if(gate.open!==goal){gate.open=clamp(gate.open+(goal?dt:-dt)*2.2,0,1);busy=true;}
       const ease=gate.open*gate.open*(3-2*gate.open);
       gate.arm.rotation.z=-ease*1.4;
@@ -740,7 +811,7 @@ async function start() {
     }
   };
   const clamp=T.MathUtils.clamp;
-  const keys={};let stickX=0,stickY=0,clock=0;
+  const keys={};let stickX=0,stickY=0,clock=0,sprint=false,lean=0;
   function stride(now) {
     const dt=Math.min(.05,(now-clock)/1000||0);clock=now;
     let jx=stickX+(keys.right?1:0)-(keys.left?1:0),jy=stickY+(keys.up?1:0)-(keys.down?1:0);
@@ -749,10 +820,13 @@ async function start() {
       if(push>1){jx/=push;jy/=push;}
       flight=null;
       const turn=controls.getAzimuthalAngle(),dx=-Math.sin(turn)*jy+Math.cos(turn)*jx,dz=-Math.cos(turn)*jy-Math.sin(turn)*jx;
-      const step=.62*dt;let nx=hero.x+dx*step,nz=hero.z+dz*step;
+      const run=(sprint||keys.run)?1:0;lean+=(run-lean)*Math.min(1,dt*8);
+      const step=.62*(1+lean*.95)*dt;let nx=hero.x+dx*step,nz=hero.z+dz*step;
       if(blocked(nx,nz)){ if(!blocked(nx,hero.z))nz=hero.z; else if(!blocked(hero.x,nz))nx=hero.x; else{nx=hero.x;nz=hero.z;} }
       const want=Math.atan2(dx,dz),gap=Math.atan2(Math.sin(want-hero.heading),Math.cos(want-hero.heading));
-      hero.heading+=gap*Math.min(1,dt*12);hero.phase+=dt*15*Math.min(1,push);
+      const before=Math.floor(hero.phase/Math.PI);
+      hero.heading+=gap*Math.min(1,dt*12);hero.phase+=dt*15*(1+lean*.7)*Math.min(1,push);
+      if(Math.floor(hero.phase/Math.PI)!==before)sound.step();
       const ny=groundAt(nx,nz),mx=nx-hero.x,my=ny-hero.y,mz=nz-hero.z;
       hero.x=nx;hero.y=ny;hero.z=nz;
       for(const spot of spots) {
@@ -765,9 +839,10 @@ async function start() {
       controls.target.x+=mx;controls.target.y+=my;controls.target.z+=mz;
       camera.position.x+=mx;camera.position.y+=my;camera.position.z+=mz;
     }
+    if(!moving)lean+=(0-lean)*Math.min(1,dt*8);
     const swing=moving?Math.sin(hero.phase):0;
     hero.root.position.set(hero.x,hero.y,hero.z);hero.root.rotation.y=hero.heading;
-    hero.body.position.y=moving?Math.abs(Math.cos(hero.phase))*.006:0;hero.body.rotation.z=swing*.09;
+    hero.body.position.y=moving?Math.abs(Math.cos(hero.phase))*(.006+lean*.006):0;hero.body.rotation.z=swing*.09;hero.body.rotation.x=lean*.26;
     hero.feet[0].position.z=.006+swing*.016;hero.feet[1].position.z=.006-swing*.016;
     hero.feet[0].position.y=Math.max(0,swing)*.008;hero.feet[1].position.y=Math.max(0,-swing)*.008;
   }
@@ -801,7 +876,7 @@ async function start() {
   };
   stopWalk=()=>{
     if(!walking)return;
-    walking=false;moving=false;hero.root.visible=hero.tag.visible=false;playButton();
+    walking=false;moving=false;hero.root.visible=hero.tag.visible=false;playButton();runLock=false;runDown=0;runState();
     document.body.classList.remove('walking');$('walk').setAttribute('aria-pressed','false');$('walk-label').textContent='Walk';
     $('view-name').textContent='Town overview';wake();
   };
@@ -816,7 +891,14 @@ async function start() {
   pad.addEventListener('pointerdown',e=>{e.preventDefault();pad.setPointerCapture(e.pointerId);clock=performance.now();steer(e);});
   pad.addEventListener('pointermove',e=>{if(pad.hasPointerCapture(e.pointerId))steer(e);});
   pad.addEventListener('pointerup',release);pad.addEventListener('pointercancel',release);pad.addEventListener('lostpointercapture',release);
-  const walkKeys={ArrowUp:'up',w:'up',W:'up',ArrowDown:'down',s:'down',S:'down',ArrowLeft:'left',a:'left',A:'left',ArrowRight:'right',d:'right',D:'right'};
+  // Run: hold the button (or Shift) to run; a quick tap locks it on, another tap lets go.
+  const runner=$('run');let runDown=0,runLock=false;
+  const runState=()=>{sprint=runLock||runDown>0;runner.setAttribute('aria-pressed',String(sprint));};
+  runner.addEventListener('pointerdown',e=>{e.preventDefault();runner.setPointerCapture(e.pointerId);runDown=performance.now();runState();});
+  const runUp=()=>{if(!runDown)return;if(performance.now()-runDown<260)runLock=!runLock;runDown=0;runState();};
+  runner.addEventListener('pointerup',runUp);runner.addEventListener('pointercancel',runUp);
+  runner.addEventListener('contextmenu',e=>e.preventDefault());
+  const walkKeys={Shift:'run',ArrowUp:'up',w:'up',W:'up',ArrowDown:'down',s:'down',S:'down',ArrowLeft:'left',a:'left',A:'left',ArrowRight:'right',d:'right',D:'right'};
   addEventListener('keydown',e=>{
     if(!walking || !walkKeys[e.key] || e.target.matches?.('input,textarea') || e.metaKey || e.ctrlKey)return;
     e.preventDefault();if(!moving)clock=performance.now();keys[walkKeys[e.key]]=true;wake();
