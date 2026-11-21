@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Taman Pip · GitHub Pages test</title>
+  <style>
+    :root { color-scheme: light; background: #f7f0de; color: #332921; }
+    body {
+      min-height: 100svh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      font: 1.125rem/1.5 system-ui, sans-serif;
+    }
+    main { width: min(32rem, 82vw); border-top: .4rem solid #8e3d37; }
+    h1 { margin: 1.4rem 0 .5rem; font: bold clamp(2.8rem, 10vw, 5rem)/1.1 Georgia, serif; }
+    p { margin: .75rem 0; }
+    a { color: #225d50; overflow-wrap: anywhere; text-underline-offset: .2em; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Taman Pip</h1>
+    <p>GitHub Pages deployment test.</p>
+    <p><a href="https://taman-pip.github.io/taman-pip/">Open the public test page</a></p>
+  </main>
+  <script>
+    const publicLink = document.querySelector('a');
+    if (location.origin === publicLink.origin && location.pathname.startsWith(publicLink.pathname)) {
+      publicLink.parentElement.textContent = 'This page is live on GitHub Pages.';
+    }
+  </script>
+</body>
+</html>
