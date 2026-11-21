@@ -12,12 +12,12 @@
   <meta property="og:image" content="https://taman-pip.github.io/taman-pip/assets/town-map.webp">
   <title>Taman Pip · Town explorer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='12' fill='%23254e3b'/%3E%3Cpath d='m7 25 10-10 8 8 6-6 10 10H7' fill='%23f4d47f'/%3E%3Cpath d='M10 28h29v8H10z' fill='%23f7f1d9'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="./style.css?v=202611211617">
+  <link rel="stylesheet" href="./style.css?v=202611211624">
   <link rel="modulepreload" href="./assets/engine.js">
   <link rel="preload" href="./assets/town.glb" as="fetch" crossorigin>
   <link rel="preload" href="./assets/residents.json" as="fetch" crossorigin>
   <link rel="preload" href="./assets/dm-sans.woff2" as="font" type="font/woff2" crossorigin>
-  <script type="module" src="./explore.js?v=202611211617"></script>
+  <script type="module" src="./explore.js?v=202611211624"></script>
 </head>
 <body>
 <svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
@@ -49,7 +49,7 @@
     <span>Taman Pip</span>
   </a>
   <span class="header-rule"></span><span class="app-name">Town explorer</span>
-  <div class="header-end"><button id="me" class="me-chip" hidden title="Go to my house"><svg><use href="#i-home"/></svg><span id="me-name"></span></button><button id="population" class="population" title="See all neighbours"><svg><use href="#i-people"/></svg><span id="population-count">64 neighbours</span></button>
+  <div class="header-end"><button id="me" class="me-chip" hidden title="Go to my house"><svg><use href="#i-home"/></svg><span id="me-name"></span></button>
   <button id="sound" class="plain" aria-label="Music and sound" title="Music and sound" aria-pressed="true"><svg><use href="#i-sound"/></svg></button>
   <button id="help" class="plain" aria-label="How to explore" title="How to explore"><svg><use href="#i-help"/></svg></button></div>
 </header>
@@ -69,7 +69,7 @@
       </div>
       <div class="zoom"><button id="zoom-in" aria-label="Zoom in" title="Zoom in"><svg><use href="#i-plus"/></svg></button><button id="zoom-out" aria-label="Zoom out" title="Zoom out"><svg><use href="#i-minus"/></svg></button><button id="reset" aria-label="Reset town view" title="Reset town view"><svg><use href="#i-reset"/></svg></button></div>
     </div>
-    <button id="play" class="play" hidden><svg><use href="#i-play"/></svg>Play the stall games</button>
+    <button id="play" class="play" hidden><svg><use href="#i-play"/></svg><span id="play-name">Play</span></button>
     <div id="stick" aria-hidden="true"><span id="stick-knob"></span></div>
     <button id="run" aria-pressed="false" aria-label="Run"><svg><use href="#i-run"/></svg><span>Run</span></button>
     <p id="walk-hint">W A S D to walk · Shift to run · Drag to look around</p>
@@ -98,7 +98,7 @@
     <dt>Find a house</dt><dd>Search a username, or tap a name tag on a roof.</dd>
     <dt>Walk</dt><dd>Tap Walk and steer with the stick or W A S D. Hold Run or Shift to run.</dd>
     <dt>Explore as a neighbour</dt><dd>Open a house and choose Explore as. You start at that gate, and Share gives a link to the house.</dd>
-    <dt>Stall games</dt><dd>Four quick games in the Games tab, or at the Pasar Malam.</dd>
+    <dt>Stall games</dt><dd>Four stalls at the Pasar Malam have a game. Open the stall, or walk up to it, to play.</dd>
     <dt>Easter eggs <span id="egg-count"></span></dt><dd>Eight things from the films are hidden in town. <button id="guide-album" class="text-link">Open the album</button> for hints.</dd>
     <dt>Sound</dt><dd>Music starts on your first tap. The speaker button turns it off. The “hus hus hus” is by @thedrizzleshow, used with permission.</dd>
   </dl>

@@ -1,5 +1,5 @@
-import { games, openGames } from './games.js?v=202611211617';
-import { sound } from './sound.js?v=202611211617';
+import { games, openGames } from './games.js?v=202611211624';
+import { sound } from './sound.js?v=202611211624';
 const places = [
   { id: 'market', name: 'Pasar Malam', type: 'Night market', tone: '#bb6845', point: [6.58, .14, 3.14], distance: 4.5, angle: .35, tilt: .91 },
   { id: 'gate', name: 'Town entrance', type: 'Welcome arch', tone: '#658052', point: [0, .15, 5.75], distance: 1.95, angle: .20, tilt: 1.22 },
@@ -44,8 +44,8 @@ const eggs = {
   roadster: {from: 'Pip’s Flying Roadster', line: '“Pip… can it go Genting?”', note: 'Toll not paid.', hint: 'Something red is parked near the entrance. Something red also flies.', reel: REEL.roadster},
   gate: {from: 'Taman Pip · Episode 1', line: 'Please don’t park at this gate.', note: 'Not even for “5 MINIT”.', hint: 'Walk up to the chairman’s gate.', reel: TAMAN_1},
   guard: {from: 'Taman Pip · Episode 1', line: '“Why their house bigger than mine?”', note: 'The mansions have their own guardhouse. It has one plastic chair.', hint: 'Walk up to where the mansions begin.', reel: TAMAN_1},
-  pipchun: {from: 'Taman Pip · Episode 2', line: '“Eh, Ayam Gepuk Pipchun!”', note: 'The first stall in the pasar malam.', hint: 'Play a round of Gepuk! at the stalls.', reel: REEL.taman2},
-  huss: {from: 'Taman Pip · Episode 3', line: 'Hus hus hus.', note: 'A very suspicious sound from behind the counter.', hint: 'Wrap or serve a burger at the stall.', reel: REEL.taman3},
+  pipchun: {from: 'Taman Pip · Episode 2', line: '“Eh, Ayam Gepuk Pipchun!”', note: 'The first stall in the pasar malam.', hint: 'Play a round of Gepuk! at the Ayam Gepuk Pipchun stall.', reel: REEL.taman2},
+  huss: {from: 'Taman Pip · Episode 3', line: 'Hus hus hus.', note: 'A very suspicious sound from behind the counter.', hint: 'Wrap a burger at the burger stall.', reel: REEL.taman3},
   seat: {from: 'Episode 3 · The Queue That Never Ended', line: 'Reserved.', note: 'A tissue packet is holding this seat.', hint: 'Walk to where the bus stops.', reel: REEL[3]}
 };
 let eggsFound = {};   // id -> time found
@@ -133,7 +133,7 @@ $('sound').onclick = () => { sound.setMuted(!sound.muted); if (!sound.muted) sou
 // Finishing a stall game can earn an egg; it is shown once the game is closed, so it is not hidden behind it.
 let owed = [];
 addEventListener('taman-game', event => {
-  const {id, score} = event.detail, egg = id === 'gepuk' ? 'pipchun' : (id === 'hus' || id === 'special') && score > 0 ? 'huss' : null;
+  const {id, score} = event.detail, egg = id === 'gepuk' ? 'pipchun' : id === 'hus' && score > 0 ? 'huss' : null;
   if (egg && !eggsFound[egg] && !owed.includes(egg)) owed.push(egg);
 });
 $('arcade').addEventListener('close', () => { const egg = owed.shift(); if (egg) found(egg); owed = []; });
@@ -202,10 +202,20 @@ function marks() {
     button.setAttribute('aria-current', String(button.dataset.id === (active?.id ?? (person && '@' + person.u))));
   }
 }
-function playButton() {
-  $('play').hidden = !(active?.id === 'market' || (active?.detail && !active.type.startsWith('Shophouse')) || person?.kind === 'stall' || (walking && atMarket));
+// Each game belongs to one stall and can only be played there: with the stall open, or standing in front of it.
+const stallGame = {ramly: 'hus', 'fried-rice': 'wok', 'gepuk-pipchun': 'gepuk', 'air-balang': 'balang'};
+const gamePlace = id => places.find(p => stallGame[p.id] === id);
+let nearStall = null;   // the game stall the walker is standing at
+function gameHere() {
+  const id = walking ? nearStall && stallGame[nearStall.id] : active ? stallGame[active.id] : person?.kind === 'stall' ? 'wok' : null;
+  return games.find(o => o.id === id);
 }
-$('play').onclick = () => openGames(null, me?.u);
+function playButton() {
+  const game = gameHere();
+  $('play').hidden = !game;
+  if (game) $('play-name').textContent = 'Play ' + game.name;
+}
+$('play').onclick = () => { const game = gameHere(); if (game) openGames(game.id, me?.u); };
 function card() {
   playButton();
   $('card').hidden = !person;
@@ -272,7 +282,6 @@ $('card-share').onclick = async () => {
   } catch (error) { if (error.name !== 'AbortError') { prompt('Copy this link', url); } }
 };
 $('me').onclick = () => me && (walking ? startWalk() : visit(me));
-$('population').onclick = () => { tab = 'people'; $('search').value = ''; directory(); if (mobile.matches) drawer(true); else $('search').focus(); };
 function choose(place, initial = false) {
   stopWalk?.();
   active = place; person = null; street = false; card(); if (!initial) remember();
@@ -291,12 +300,12 @@ function heading(text) {
 function gameRow(game) {
   const b = document.createElement('button');
   b.className = 'place person';
-  const lot = document.createElement('span'); lot.className = 'lot'; lot.style.setProperty('--tone', game.tone); lot.textContent = 'Play';
+  const lot = document.createElement('span'); lot.className = 'lot'; lot.style.setProperty('--tone', game.tone); lot.textContent = 'Go';
   const words = document.createElement('span');
   const title = document.createElement('strong'); title.textContent = game.name;
   const type = document.createElement('small'); type.textContent = game.stall;
   words.append(title, type); b.append(lot, words);
-  b.onclick = () => { if (mobile.matches) drawer(false, false); openGames(game.id, me?.u); };
+  b.onclick = () => { if (mobile.matches) drawer(false, false); choose(gamePlace(game.id)); };   // to the stall; the game is played there
   $('places').append(b);
 }
 function placeRow(p) {
@@ -363,18 +372,17 @@ function directory() {
 $('tab-people').onclick = () => { tab = 'people'; directory(); };
 $('tab-places').onclick = () => { tab = 'places'; directory(); };
 $('tab-games').onclick = () => { tab = 'games'; directory(); };
-if (params.get('game')) openGames(params.get('game'));
 $('search').onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); $('places').querySelector('button')?.click(); } };
 $('search').oninput = directory;
 directory();
 
 const order = ['pip', 'mansion', 'semi', 'terrace', 'apartment', 'stall'];
-const linkedPlace = places.find(p => p.id === params.get('place'));
+const linkedGame = {flip: 'hus', special: 'hus', huss: 'hus'}[params.get('game')] || params.get('game');   // a shared score opens the stall its game is played at
+const linkedPlace = places.find(p => p.id === params.get('place')) || places.find(p => linkedGame && stallGame[p.id] === linkedGame);
 if (linkedPlace) choose(linkedPlace, true);
 const roster = fetch('./assets/residents.json').then(r => r.json()).then(data => {
   people = data.residents.sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || a.lot.localeCompare(b.lot));
   const count = people.filter(o => o.kind !== 'pip').length;
-  $('population-count').textContent = count + ' neighbours';
   const flats = data.apartments - people.filter(o => o.kind === 'apartment').length;
   $('milestone-text').textContent = flats + ' apartments to go';
   const find = name => name && people.find(o => o.u.toLowerCase() === name.toLowerCase().replace(/^@/, ''));
@@ -716,6 +724,11 @@ async function start() {
     return y>=2.949?.08:0;
   };
   const CELL=.04, HALF=9.32, SIDE=Math.ceil(HALF*2/CELL);
+  const stallAt = (x,z) => {
+    let best=null,reach=.46;
+    for(const p of places){ if(!stallGame[p.id])continue; const d=Math.hypot(x-p.point[0],z-p.point[2]); if(d<reach){reach=d;best=p;} }
+    return best;
+  };
   const inMarket = (x,z) => Math.hypot(x-5.45,z-2.75)<1.25 || (x>6.28 && x<9 && z>3.03 && z<4.62);
   function buildGrid() {
     // Mark every map cell that has something solid between ankle and shoulder height.
@@ -923,8 +936,9 @@ async function start() {
         if(here && !spot.in)found(spot.id);
         spot.in=here;
       }
-      const among=inMarket(nx,nz);
-      if(among!==atMarket){atMarket=among;playButton();}
+      atMarket=inMarket(nx,nz);
+      const stallNow=stallAt(nx,nz);
+      if(stallNow!==nearStall){nearStall=stallNow;playButton();}
       controls.target.x+=mx;controls.target.y+=my;controls.target.z+=mz;
       camera.position.x+=mx;camera.position.y+=my;camera.position.z+=mz;
     }
@@ -949,7 +963,7 @@ async function start() {
     }
     hero.x=x;hero.z=z;hero.y=groundAt(x,z);hero.heading=shop ? (shop.reverse ? 0 : Math.PI) : me ? me.face : Math.PI;hero.phase=0;
     hero.root.visible=hero.tag.visible=true;
-    atMarket=inMarket(x,z);
+    atMarket=inMarket(x,z);nearStall=stallAt(x,z);
     walking=true;person=null;active=null;street=false;stickX=stickY=0;for(const k in keys)keys[k]=false;
     card();marks();remember();
     for(const pin of $('pins').children)pin.classList.remove('current');
@@ -1062,6 +1076,17 @@ async function start() {
       const mesh=new T.Mesh(shape,material);scene.add(mesh);
       tags.push({who:o,mesh,at:new T.Vector3(...o.p)});
     });
+    // The entrance arch counts everyone who lives here, the chairman included, as in the films.
+    for(const side of [1,-1]){
+      const plate=document.createElement('canvas');plate.width=1024;plate.height=268;
+      const p=plate.getContext('2d');p.textAlign='center';p.textBaseline='middle';
+      p.fillStyle='#f3ead2';p.fillRect(0,0,1024,268);p.strokeStyle='#7a2e35';p.lineWidth=10;p.strokeRect(14,14,996,240);
+      p.fillStyle='#7a2e35';p.font='700 118px "DM Sans",Arial,sans-serif';p.letterSpacing='6px';p.fillText('TAMAN PIP',512,104);
+      p.fillStyle='#3b3a34';p.font='600 56px "DM Sans",Arial,sans-serif';p.letterSpacing='5px';p.fillText('POPULATION: '+list.length,512,200);
+      const picture=new T.CanvasTexture(plate);picture.colorSpace=T.SRGBColorSpace;picture.anisotropy=8;
+      const board=new T.Mesh(new T.PlaneGeometry(.6,.157),new T.MeshBasicMaterial({map:picture,color:0xdcd6c8}));
+      board.position.set(0,.4825,side>0?5.757:5.731);board.rotation.y=side>0?0:Math.PI;scene.add(board);
+    }
     // Whoever runs a shop or a market pitch has their name over it too; tapping it opens the place.
     for(const shop of places){
       const owner=shop.owner && list.find(o=>o.u===shop.owner);

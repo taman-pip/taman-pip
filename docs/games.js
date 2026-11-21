@@ -1,4 +1,4 @@
-// Pasar malam stall games: four short tap games played in a dialog over the town.
+// Pasar malam stall games: four short tap games, each opened at its own stall, played in a dialog over the town.
 // Everything is drawn on one canvas; the sounds come from sound.js, so there is nothing to download.
 const W = 360, H = 400;
 const $ = id => document.getElementById(id);
@@ -7,7 +7,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * clamp(t, 0, 1)));
 const rgb = c => 'rgb(' + c.join(',') + ')';
 
-import { sound } from './sound.js?v=202611211617';
+import { sound } from './sound.js?v=202611211624';
 const sfx = sound;
 
 // ---- drawing helpers -------------------------------------------------------
@@ -92,133 +92,77 @@ function huss(api) {
   };
 }
 
-// ---- 2. Burger Special: the pasar malam way, one order at a time -------------
-// Patty on, flip it, crack the egg and spread it thin, cheese if the order wants it (the egg tucks itself
-// round the patty), the sauces on the ticket, into the bun, and last of all the paper: hus, hus, hus.
-function special(api) {
-  const cx = W / 2, cy = 166, pops = [], sides = ['top', 'right', 'bottom', 'left'], vectors = { top: [0, -1], right: [1, 0], bottom: [0, 1], left: [-1, 0] };
-  const tray = [
-    { id: 'patty', name: 'Patty', x: 15, y: 278, w: 78, h: 48 }, { id: 'egg', name: 'Egg', x: 99, y: 278, w: 78, h: 48 },
-    { id: 'cheese', name: 'Cheese', x: 183, y: 278, w: 78, h: 48 }, { id: 'bun', name: 'Bun', x: 267, y: 278, w: 78, h: 48 },
-    { id: 'chili', name: 'Chili', x: 15, y: 332, w: 106, h: 48 }, { id: 'mayo', name: 'Mayo', x: 127, y: 332, w: 106, h: 48 },
-    { id: 'pepper', name: 'Black pepper', x: 239, y: 332, w: 106, h: 48 }
-  ];
-  const raw = [222, 140, 126], done = [124, 76, 42], burnt = [34, 28, 26];
-  let order, stage, t, ready, burn, spin, egg, cheese, folds, foldOrder, sauced, leave, tuck, bunOn, shake = 0, pulse = 0, press = null;
-  function next() {
-    const sauces = ['chili', 'mayo', 'pepper'].filter(() => Math.random() < .6);
-    order = { cheese: Math.random() < .6, sauces: sauces.length ? sauces : ['chili'] };
-    stage = 'patty'; t = 0; spin = 0; egg = 0; cheese = false; folds = { top: 0, right: 0, bottom: 0, left: 0 }; foldOrder = []; sauced = []; leave = 0; tuck = 0; bunOn = false;
-  }
+// ---- 2. Air Balang: a neighbour asks for a drink, mix it from the jars ----------
+function balang(api) {
+  const jars = [
+    { id: 'sirap', name: 'Sirap', c: [213, 48, 62] }, { id: 'susu', name: 'Susu', c: [250, 244, 230] }, { id: 'limau', name: 'Limau', c: [150, 200, 62] },
+    { id: 'teh', name: 'Teh', c: [146, 84, 40] }, { id: 'jagung', name: 'Jagung', c: [242, 196, 52] }];
+  const jar = id => jars.find(o => o.id === id), slot = i => ({ x: 12 + i * 68, y: 306, w: 64, h: 78 });
+  const menu = [['Sirap ais', 'sirap', 'sirap'], ['Bandung', 'sirap', 'susu'], ['Teh ais', 'teh', 'susu'], ['Teh O ais', 'teh', 'teh'], ['Limau ais', 'limau', 'limau'],
+    ['Sirap limau', 'sirap', 'limau'], ['Teh O limau', 'teh', 'limau'], ['Jagung susu', 'jagung', 'susu'], ['Air jagung', 'jagung', 'jagung']];
+  const shells = ['#e9c9a0', '#d7a877', '#f0d9b5', '#c99262'], coats = ['#c16047', '#3d7772', '#c59049', '#737698', '#8b4649'];
+  const blend = ids => ids.reduce((sum, id) => sum.map((v, k) => v + jar(id).c[k] / ids.length), [0, 0, 0]).map(Math.round);
+  let order, cup = [], served = 0, mood = 0, shake = 0, leave = 0, last = -1, who = 0, pops = [], pulse = 0;
+  const next = () => { let n; do n = Math.floor(Math.random() * Math.min(menu.length, 4 + served)); while (n === last); last = n; order = menu[n]; cup = []; leave = 0; mood = 0; who++; };
   next();
-  const wrong = text => { shake = .3; api.penalty(1); sfx.bad(); pops.push({ text: text || '-1s', x: cx, y: 96, t: 0, color: '#ffb4a2', size: 16 }); };
-  // The egg wraps round the patty to its own hus, hus, hus.
-  const wrapEgg = () => {
-    tuck = .01; const mine = order;
-    for (let i = 0; i < 3; i++) setTimeout(() => { if (order !== mine || !tuck) return; sfx.hus(i); pops.push({ text: 'hus', x: W / 2 + (i - 1) * 64, y: 120, t: 0 }); }, i * 200);
-  };
-  const hint = () => ({ patty: 'Put a patty on', cook: t < ready ? 'Wait for the green ring…' : 'Flip it now', egg: 'Crack an egg', cheese: 'Add the cheese',
-    wrap: 'Wrap it: hus, hus, hus', sauce: 'Sauce: ' + order.sauces.filter(o => !sauced.includes(o)).join(', '), bun: 'Into the bun' }[stage]);
-  function useTray(id) {
-    press = { id, t: .18 };
-    if (stage === 'patty' && id === 'patty') { stage = 'cook'; t = 0; ready = rand(1.3, 1.9); burn = ready + 1.7; sfx.sizzle(); }
-    else if (stage === 'egg' && id === 'egg') { egg = .01; sfx.sizzle(); stage = order.cheese ? 'cheese' : 'sauce'; if (stage === 'sauce') wrapEgg(); }
-    else if (stage === 'cheese' && id === 'cheese') { cheese = true; sfx.good(); stage = 'sauce'; wrapEgg(); }
-    else if (stage === 'sauce' && order.sauces.includes(id) && !sauced.includes(id)) { sauced.push(id); sfx.good(); if (sauced.length === order.sauces.length) stage = 'bun'; }
-    else if (stage === 'bun' && id === 'bun') { bunOn = true; sfx.good(); stage = 'wrap'; foldOrder = [...sides].sort(() => Math.random() - .5).slice(0, 3); }
-    else wrong(stage === 'sauce' && ['chili', 'mayo', 'pepper'].includes(id) ? 'not on the order' : '-1s');
+  function pour(id) {
+    if (leave || cup.length > 1) return;
+    cup.push(id); sfx.good();
+    if (cup.length < 2) return;
+    if ([...cup].sort().join() === order.slice(1).sort().join()) { served++; api.score(1); sfx.great(); mood = 1; leave = .001; pops.push({ text: 'Sedap!', x: 250, y: 190, t: 0 }); }
+    else { api.penalty(2); sfx.bad(); mood = -1; shake = .35; pops.push({ text: '-2s', x: 250, y: 190, t: 0, color: '#ffb4a2' }); }
   }
-  function useGriddle(x, y) {
-    if (stage === 'cook') {
-      if (Math.hypot(x - cx, y - cy) > 60) return;
-      if (t < ready) { pops.push({ text: 'not yet', x: cx, y: cy - 56, t: 0, size: 15 }); return; }
-      spin = 1; sfx.sizzle(); stage = 'egg';
-    } else if (stage === 'wrap') {
-      const dx = x - cx, dy = y - cy, side = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'bottom' : 'top');
-      const want = foldOrder.find(o => !folds[o]);
-      if (side === want) { sfx.hus(foldOrder.indexOf(side)); folds[side] = .01; pops.push({ text: 'hus', x: cx + vectors[side][0] * 70, y: cy + vectors[side][1] * 70, t: 0 }); if (foldOrder.every(o => folds[o])) { api.score(1); sfx.great(); leave = .001; pops.push({ text: 'Siap! +1', x: cx, y: 96, t: 0 }); } }
-      else wrong();
+  function glass(g, x, y, w, h, colours) {            // a tall glass, filled a half for each ladle
+    g.fillStyle = '#ffffff55'; g.beginPath(); g.moveTo(x - w / 2, y - h); g.lineTo(x + w / 2, y - h); g.lineTo(x + w * .4, y); g.lineTo(x - w * .4, y); g.closePath(); g.fill();
+    if (colours.length) {
+      const level = colours.length / 2, top = y - h * .92 * level, half = w * (.4 + .1 * .92 * level);
+      g.fillStyle = rgb(blend(colours)); g.beginPath(); g.moveTo(x - half, top); g.lineTo(x + half, top); g.lineTo(x + w * .4, y); g.lineTo(x - w * .4, y); g.closePath(); g.fill();
+      g.fillStyle = '#ffffff66'; for (const [dx, dy] of [[-.14, .1], [.12, .22], [-.02, .34]]) if (y - h * dy * 2 * level > top) g.fillRect(x + w * dx - 5, y - h * dy * 2 * level - 5, 10, 10);   // ice
     }
+    g.strokeStyle = '#ffffffcc'; g.lineWidth = 3; g.beginPath(); g.moveTo(x - w / 2, y - h); g.lineTo(x - w * .4, y); g.lineTo(x + w * .4, y); g.lineTo(x + w / 2, y - h); g.stroke();
   }
   return {
-    time: 60, unit: 'burger specials served',
-    tap(x, y) {
-      if (leave) return;
-      const button = tray.find(o => x >= o.x && x <= o.x + o.w && y >= o.y && y <= o.y + o.h);
-      if (button) useTray(button.id); else if (y < 272) useGriddle(x, y);
-    },
+    time: 40, unit: 'drinks served',
+    tap(x, y) { jars.forEach((o, i) => { const b = slot(i); if (x >= b.x && x <= b.x + b.w && y >= b.y - 6 && y <= b.y + b.h + 6) pour(o.id); }); },
+    key(k) { const n = '12345'.indexOf(k); if (n >= 0) pour(jars[n].id); return n >= 0; },
     update(dt) {
-      pulse += dt; shake = Math.max(0, shake - dt); spin = Math.max(0, spin - dt * 4);
-      if (press) { press.t -= dt; if (press.t <= 0) press = null; }
-      if (egg) egg = Math.min(1, egg + dt * 4);
-      if (tuck) tuck = Math.min(1, tuck + dt * 1.7);
-      for (const o of sides) if (folds[o]) folds[o] = Math.min(1, folds[o] + dt * 9);
-      if (stage === 'cook') { t += dt; if (t >= burn) { sfx.bad(); api.penalty(2); pops.push({ text: 'burnt! -2s', x: cx, y: 96, t: 0, color: '#ffb4a2', size: 16 }); stage = 'patty'; } }
-      if (leave) { leave += dt; if (leave > .55) next(); }
+      pulse += dt; shake = Math.max(0, shake - dt);
+      if (mood < 0 && !shake) { mood = 0; cup = []; }
+      if (leave) { leave += dt; if (leave > .6) next(); }
     },
     draw(g, dt) {
       g.fillStyle = '#e8dcc4'; g.fillRect(0, 0, W, H);
-      // the order ticket
-      g.fillStyle = '#fffdf4'; g.beginPath(); g.roundRect(14, 8, W - 28, 44, 10); g.fill();
-      g.textBaseline = 'middle'; g.textAlign = 'left'; g.fillStyle = '#58695f'; g.font = '700 11px "DM Sans",Arial,sans-serif'; g.fillText('ORDER', 26, 21);
-      g.fillStyle = '#213f31'; g.font = '700 15px "DM Sans",Arial,sans-serif';
-      g.fillText('Special' + (order.cheese ? ' + cheese' : ', no cheese') + ' · ' + order.sauces.map(o => o === 'pepper' ? 'black pepper' : o).join(', '), 26, 38);
-      // griddle
-      g.fillStyle = '#2f3537'; g.beginPath(); g.roundRect(14, 58, W - 28, 212, 20); g.fill();
-      g.fillStyle = '#3d4447'; g.beginPath(); g.roundRect(22, 66, W - 44, 196, 14); g.fill();
-      const ox = cx + (shake ? Math.sin(shake * 60) * 5 : 0) + (leave ? leave * leave * 1300 : 0);
-      if (bunOn) wrapPaper(g, ox, cy, 84);
-      if (egg && !bunOn) {                           // the egg spread thin
-        const half = 30 + egg * 44;
-        g.fillStyle = '#f6dc8a'; g.beginPath(); g.roundRect(ox - half, cy - half, half * 2, half * 2, 22); g.fill();
-        g.fillStyle = '#fbefc4'; g.beginPath(); g.roundRect(ox - half + 8, cy - half + 8, half * 2 - 16, half * 2 - 16, 16); g.fill();
-      }
-      if (stage !== 'patty' && !bunOn) {             // the patty, split open and seasoned
-        const colour = stage === 'cook' ? (t < ready ? mix(raw, done, t / ready) : mix(done, burnt, (t - ready) / (burn - ready) * .9)) : done;
-        g.save(); g.translate(ox, cy - Math.sin(spin * Math.PI) * 24); g.scale(1, 1 - Math.sin(spin * Math.PI) * .85);
-        g.fillStyle = rgb(mix(colour, [0, 0, 0], .28)); g.beginPath(); g.arc(0, 4, 37, 0, 7); g.fill();
-        g.fillStyle = rgb(colour); g.beginPath(); g.arc(0, 0, 36, 0, 7); g.fill();
-        g.strokeStyle = rgb(mix(colour, [0, 0, 0], .35)); g.lineWidth = 3;
-        for (const off of [-12, 0, 12]) { g.beginPath(); g.moveTo(-21, off); g.lineTo(21, off + 5); g.stroke(); }
-        g.restore();
-        if (stage === 'cook' && t >= ready) {
-          const left = 1 - (t - ready) / (burn - ready);
-          g.strokeStyle = left > .4 ? '#a8e08a' : '#ffb35c'; g.lineWidth = 6; g.lineCap = 'round';
-          g.beginPath(); g.arc(ox, cy, 46, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left); g.stroke(); g.lineCap = 'butt';
+      g.fillStyle = '#2f5d57'; g.fillRect(0, 0, W, 34); g.fillStyle = '#27504a'; for (let x = 0; x < W; x += 40) { g.beginPath(); g.moveTo(x, 34); g.lineTo(x + 20, 48); g.lineTo(x + 40, 34); g.fill(); }   // the tent valance
+      // The neighbour at the counter.
+      const slide = leave ? leave * leave * 500 : 0, ex = 82 - slide, ey = 196 + Math.sin(pulse * 3) * 2 + (mood > 0 ? -Math.abs(Math.sin(pulse * 14)) * 8 : 0) + (shake ? Math.sin(shake * 60) * 3 : 0);
+      g.fillStyle = coats[who % coats.length]; g.beginPath(); g.ellipse(ex, ey + 30, 44, 34, 0, 0, 7); g.fill();
+      g.fillStyle = shells[who % shells.length]; g.beginPath(); g.ellipse(ex, ey - 14, 40, 50, 0, 0, 7); g.fill();
+      g.fillStyle = '#2b2622'; g.beginPath(); g.arc(ex - 13, ey - 20, 4, 0, 7); g.arc(ex + 13, ey - 20, 4, 0, 7); g.fill();
+      g.strokeStyle = '#2b2622'; g.lineWidth = 3; g.lineCap = 'round'; g.beginPath();
+      if (mood < 0) g.arc(ex, ey + 6, 9, Math.PI * 1.15, Math.PI * 1.85); else g.arc(ex, ey - 6, mood > 0 ? 12 : 8, Math.PI * .15, Math.PI * .85);
+      g.stroke();
+      // What they asked for.
+      if (!leave) {
+        g.fillStyle = '#fffdf4'; g.beginPath(); g.roundRect(128, 62, 220, 86, 16); g.fill(); g.beginPath(); g.moveTo(140, 140); g.lineTo(118, 166); g.lineTo(166, 146); g.fill();
+        g.fillStyle = '#213f31'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.font = '600 13px "DM Sans",Arial,sans-serif'; g.fillText('One, please:', 144, 82);
+        g.font = '700 22px "DM Sans",Arial,sans-serif'; g.fillText(order[0], 144, 106);
+        g.fillStyle = rgb(blend(order.slice(1))); g.strokeStyle = '#213f3155'; g.lineWidth = 2; g.beginPath(); g.roundRect(304, 76, 30, 44, 6); g.fill(); g.stroke();
+        if (served < 3) {                              // the first few orders show the recipe
+          order.slice(1).forEach((id, i) => { g.fillStyle = rgb(jar(id).c); g.strokeStyle = '#213f3155'; g.beginPath(); g.arc(152 + i * 22, 130, 8, 0, 7); g.fill(); g.stroke(); });
+          g.fillStyle = '#213f31aa'; g.font = '600 12px "DM Sans",Arial,sans-serif'; g.fillText(order.slice(1).map(id => jar(id).name).join(' + '), 196, 131);
         }
       }
-      if (cheese && !bunOn) { g.save(); g.translate(ox, cy); g.rotate(.5); g.fillStyle = '#f2b632'; g.beginPath(); g.roundRect(-25, -25, 50, 50, 5); g.fill(); g.fillStyle = '#f7cf62'; g.beginPath(); g.roundRect(-20, -20, 40, 40, 4); g.fill(); g.restore(); }
-      if (tuck && !bunOn) for (const o of sides) {   // the egg tucks itself round the patty
-        const [vx, vy] = vectors[o], half = 74, reach = tuck * 44;
-        g.fillStyle = '#f3d77c'; g.beginPath();
-        if (vx) g.roundRect(vx > 0 ? ox + half - 32 - reach : ox - half, cy - half + 6, 32 + reach, half * 2 - 12, 14);
-        else g.roundRect(ox - half + 6, vy > 0 ? cy + half - 32 - reach : cy - half, half * 2 - 12, 32 + reach, 14);
-        g.fill(); g.strokeStyle = '#d9b655'; g.lineWidth = 2; g.stroke();
-      }
-      const squiggle = (colour, shift) => { g.strokeStyle = colour; g.lineWidth = 6; g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath(); for (let i = 0; i <= 8; i++) { const x = ox - 48 + i * 12, y = cy + shift + (i % 2 ? 9 : -9); i ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); g.lineCap = 'butt'; };
-      if (!bunOn && sauced.includes('chili')) squiggle('#c8321f', -22);
-      if (!bunOn && sauced.includes('mayo')) squiggle('#fff7df', 4);
-      if (!bunOn && sauced.includes('pepper')) { g.fillStyle = '#2b2622'; for (let i = 0; i < 16; i++) { g.beginPath(); g.arc(ox - 46 + (i * 37 % 92), cy + 22 + (i * 13 % 24), 2.4, 0, 7); g.fill(); } }
-      if (bunOn) { burgerBun(g, ox, cy, .86); for (const o of sides) if (folds[o]) paperFlap(g, ox, cy, 84, vectors[o], folds[o]); }   // in the bun, then the paper
-      if (stage === 'wrap' && !leave) {              // arrow on the side of the paper to fold next
-        const want = foldOrder.find(o => !folds[o]), [vx, vy] = vectors[want], bob = Math.sin(pulse * 9) * 5, ax = ox + vx * (104 - bob), ay = cy + vy * (98 - bob);
-        g.save(); g.translate(ax, ay); g.rotate(Math.atan2(-vy, -vx));
-        g.fillStyle = '#fbf3e2'; g.strokeStyle = '#2c533d'; g.lineWidth = 4; g.beginPath();
-        g.moveTo(15, 0); g.lineTo(-8, -14); g.lineTo(-8, -6); g.lineTo(-19, -6); g.lineTo(-19, 6); g.lineTo(-8, 6); g.lineTo(-8, 14); g.closePath(); g.stroke(); g.fill(); g.restore();
-      }
-      if (!leave) label(g, hint(), cx, 250, 14);
-      // the tray
-      const wanted = { patty: stage === 'patty', egg: stage === 'egg', cheese: stage === 'cheese', bun: stage === 'bun', chili: stage === 'sauce' && order.sauces.includes('chili') && !sauced.includes('chili'), mayo: stage === 'sauce' && order.sauces.includes('mayo') && !sauced.includes('mayo'), pepper: stage === 'sauce' && order.sauces.includes('pepper') && !sauced.includes('pepper') };
-      const swatch = { patty: '#7a4a2a', egg: '#f6dc8a', cheese: '#f2b632', bun: '#c98a3e', chili: '#c8321f', mayo: '#fff7df', pepper: '#2b2622' };
-      for (const o of tray) {
-        const down = press?.id === o.id ? 2 : 0;
-        g.fillStyle = '#00000022'; g.beginPath(); g.roundRect(o.x, o.y + 3, o.w, o.h, 11); g.fill();
-        g.fillStyle = wanted[o.id] ? '#fffdf4' : '#f1ead8'; g.beginPath(); g.roundRect(o.x, o.y + down, o.w, o.h, 11); g.fill();
-        if (wanted[o.id]) { g.strokeStyle = '#2c533d'; g.lineWidth = 2.5; g.stroke(); }
-        g.fillStyle = swatch[o.id]; g.strokeStyle = '#00000030'; g.lineWidth = 1; g.beginPath(); g.arc(o.x + 17, o.y + o.h / 2 + down, 8, 0, 7); g.fill(); g.stroke();
-        g.fillStyle = '#213f31'; g.font = '700 ' + (o.name.length > 8 ? 11 : 13.5) + 'px "DM Sans",Arial,sans-serif'; g.textAlign = 'left'; g.textBaseline = 'middle';
-        g.fillText(o.name, o.x + 30, o.y + o.h / 2 + 1 + down);
-      }
+      // The counter, the glass being filled, and the jars.
+      g.fillStyle = '#f4efe2'; g.fillRect(0, 262, W, 16); g.fillStyle = '#7a5230'; g.fillRect(0, 278, W, H - 278);
+      glass(g, 250 + (shake ? Math.sin(shake * 60) * 5 : 0) - slide * .6, 262, 62, 92, cup);
+      jars.forEach((o, i) => {
+        const b = slot(i), lit = !leave && cup.length < 2 && order.slice(1).includes(o.id) && served < 3;
+        g.fillStyle = '#ffffff40'; g.beginPath(); g.roundRect(b.x + 6, b.y, b.w - 12, b.h - 20, 10); g.fill();
+        g.fillStyle = rgb(o.c); g.beginPath(); g.roundRect(b.x + 6, b.y + 10, b.w - 12, b.h - 30, [4, 4, 10, 10]); g.fill();
+        g.fillStyle = '#b9b9bd'; g.beginPath(); g.roundRect(b.x + 3, b.y - 6, b.w - 6, 9, 4); g.fill();
+        g.strokeStyle = lit ? '#fbf3e2' : '#00000022'; g.lineWidth = lit ? 3 + Math.sin(pulse * 8) : 2; g.beginPath(); g.roundRect(b.x + 6, b.y, b.w - 12, b.h - 20, 10); g.stroke();
+        g.fillStyle = '#fbf3e2'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '700 13px "DM Sans",Arial,sans-serif'; g.fillText(o.name, b.x + b.w / 2, b.y + b.h - 8);
+      });
       floaters(pops, g, dt);
     }
   };
@@ -335,8 +279,8 @@ function gepuk(api) {
 export const games = [
   { id: 'hus', name: 'Hus Hus Hus', stall: 'Burger stall', tone: '#b0503f', make: huss,
     how: 'Wrap each burger in paper: three folds, hus, hus, hus. Tap the side the arrow points at. A wrong fold costs a second.' },
-  { id: 'special', name: 'Burger Special', stall: 'Burger stall', tone: '#7a4a2a', make: special,
-    how: 'Make each order the pasar malam way: patty on, flip it on the green ring, crack the egg, cheese if they asked, the sauces on the ticket, the bun, then wrap it in paper: hus, hus, hus. Mistakes cost a second.' },
+  { id: 'balang', name: 'Air Balang', stall: 'Air Balang', tone: '#336761', make: balang,
+    how: 'A neighbour asks for a drink. Mix it with two ladles from the jars: Bandung is sirap and susu, Teh ais is teh and susu. The first few orders show the recipe; after that, go by the name and the colour. A wrong mix costs two seconds.' },
   { id: 'wok', name: 'Wok Hei', stall: 'Fried rice stall', tone: '#c58a2b', make: wok,
     how: 'Tap anywhere as the ring meets the rim of the wok to toss the nasi goreng. Dead on scores double. Three misses and the rice is on the floor.' },
   { id: 'gepuk', name: 'Gepuk!', stall: 'Ayam Gepuk Pipchun', tone: '#b5382a', make: gepuk,
@@ -364,7 +308,7 @@ function panel(mode) {
   $('arcade-menu').hidden = mode !== 'menu';
   $('arcade-brief').hidden = mode === 'menu';
   $('arcade-hud').hidden = mode === 'menu';
-  $('arcade-back').hidden = mode === 'menu' || mode === 'play';
+  $('arcade-back').hidden = true;                  // each game is played at its own stall, there is no menu to go back to
   if (mode === 'menu') { $('arcade-stall').textContent = 'Pasar malam'; $('arcade-title').textContent = 'Stall games'; return; }
   $('arcade-stall').textContent = current.stall; $('arcade-title').textContent = current.name;
   const record = best(current.id);
@@ -410,7 +354,7 @@ function pick(game) {
 }
 export function openGames(id, as = '') {
   player = as;
-  const game = games.find(o => o.id === ({ flip: 'special', huss: 'hus' }[id] || id));   // earlier names still open the same games
+  const game = games.find(o => o.id === ({ flip: 'hus', special: 'hus', huss: 'hus' }[id] || id));   // earlier names still open the same games
   if (!box.open) box.showModal();
   sound.stall(true);
   if (game) pick(game); else { cancelAnimationFrame(loop); loop = 0; current = null; play = null; panel('menu'); }
