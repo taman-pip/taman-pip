@@ -1,5 +1,5 @@
-import { games, openGames } from './games.js?v=202611211548';
-import { sound } from './sound.js?v=202611211548';
+import { games, openGames } from './games.js?v=202611211600';
+import { sound } from './sound.js?v=202611211600';
 const places = [
   { id: 'market', name: 'Pasar Malam', type: 'Night market', tone: '#bb6845', point: [6.58, .14, 3.14], distance: 4.5, angle: .35, tilt: .91 },
   { id: 'gate', name: 'Town entrance', type: 'Welcome arch', tone: '#658052', point: [0, .15, 5.75], distance: 1.95, angle: .20, tilt: 1.22 },
@@ -40,18 +40,14 @@ const REEL = {1: 'https://www.instagram.com/reel/Dfm3nabT8e9/', 2: 'https://www.
   taman2: 'https://www.instagram.com/reel/Df86bHYBMBs/', taman3: 'https://www.instagram.com/reel/Df_NYePMCaq/'};   // from the user
 const eggs = {
   water: {from: 'Episode 1 \u00b7 Retired Pip', line: '\u201cIntroducing\u2026 WATER!\u201d', note: 'Now one hundred percent wetter.', hint: 'Walk down to the pond.', reel: REEL[1]},
-  sale: {from: 'Episode 2 \u00b7 Pip vs 11.11', line: '\u201cAdd to cart only.\u201d', note: 'It\u2019s the twelfth. The sale did not get the memo.', hint: 'Search for the biggest sale date of the year.', reel: REEL[2]},
   moon: {from: 'The Town That Never Looked at the Moon', line: '“And the moon looked back.”', note: 'Quick. Use a mirror.', hint: 'Look low in the northern sky.', reel: REEL.moon},
   roadster: {from: 'Pip’s Flying Roadster', line: '“Pip… can it go Genting?”', note: 'Toll not paid.', hint: 'Something red is parked near the entrance. Something red also flies.', reel: REEL.roadster},
   gate: {from: 'Taman Pip · Episode 1', line: 'Please don’t park at this gate.', note: 'Not even for “5 MINIT”.', hint: 'Walk up to the chairman’s gate.', reel: TAMAN_1},
   guard: {from: 'Taman Pip · Episode 1', line: '“Why their house bigger than mine?”', note: 'The mansions have their own guardhouse. It has one plastic chair.', hint: 'Walk up to where the mansions begin.', reel: TAMAN_1},
   pipchun: {from: 'Taman Pip · Episode 2', line: '“Eh, Ayam Gepuk Pipchun!”', note: 'The first stall in the pasar malam.', hint: 'Play a round of Gepuk! at the stalls.', reel: REEL.taman2},
   huss: {from: 'Taman Pip · Episode 3', line: 'Hus hus hus.', note: 'A very suspicious sound from behind the counter.', hint: 'Wrap or serve a burger at the stall.', reel: REEL.taman3},
-  eggs: {from: 'What If Costco Opened in Malaysia?', line: '“…Eggs.”', note: 'He only came in for one thing.', hint: 'Search for the one thing Pip went shopping for.', reel: REEL.costco},
-  look: {from: 'What If Malaysia Got Disneyland Before Singapore?', line: '“I’m just here to look.”', note: 'Castle view, mah. Breakfast extra.', hint: 'Search for a theme park Malaysia does not have.', reel: REEL.disneyland},
   seat: {from: 'Episode 3 · The Queue That Never Ended', line: 'Reserved.', note: 'A tissue packet is holding this seat.', hint: 'Walk to where the bus stops.', reel: REEL[3]}
 };
-const eggWords = {water: 'water', air: 'water', '11.11': 'sale', '1111': 'sale', '11/11': 'sale', sale: 'sale', eggs: 'eggs', egg: 'eggs', telur: 'eggs', disneyland: 'look', castle: 'look', moon: 'moon', bulan: 'moon', genting: 'roadster', roadster: 'roadster'};
 let eggsFound = {};   // id -> time found
 try {
   const saved = JSON.parse(localStorage.getItem('taman-pip-eggs') || '{}');
@@ -59,7 +55,7 @@ try {
   else for (const id in saved) eggsFound[id] = saved[id];
   for (const id in eggsFound) if (!eggs[id]) delete eggsFound[id];
 } catch {}
-let eggTimer = 0, lastWord = '';
+let eggTimer = 0;
 const eggTotal = Object.keys(eggs).length, eggTally = () => Object.keys(eggsFound).length;
 const saveEggs = () => { try { localStorage.setItem('taman-pip-eggs', JSON.stringify(eggsFound)); } catch {} };
 function eggCount() {
@@ -90,8 +86,9 @@ function album() {
   eggCount();
 }
 function found(id) {
-  const egg = eggs[id], fresh = !eggsFound[id];
-  if (fresh) { eggsFound[id] = Date.now(); saveEggs(); }
+  if (eggsFound[id]) return;                        // each egg is announced once; after that it lives in the album
+  const egg = eggs[id], fresh = true;
+  eggsFound[id] = Date.now(); saveEggs();
   $('egg-from').textContent = egg.from; $('egg-line').textContent = egg.line; $('egg-note').textContent = egg.note;
   $('egg-tally').textContent = (fresh ? 'Easter egg found · ' : 'Found before · ') + eggTally() + ' of ' + eggTotal + ' · tap to see them all';
   $('egg').hidden = false; eggCount(); sound.great();
@@ -298,8 +295,6 @@ function personRow(o) {
 }
 function directory() {
   const query = $('search').value.trim().toLowerCase().replace(/^@/, '');
-  if (eggWords[query] && query !== lastWord) found(eggWords[query]);
-  lastWord = query;
   const foundPlaces = places.filter(p => [p.name, p.type, p.owner, p.keywords].join(' ').toLowerCase().includes(query));
   const foundPeople = people.filter(o => (o.u + ' ' + o.lot + ' ' + kinds[o.kind].label + ' ' + kinds[o.kind].where).toLowerCase().includes(query));
   $('count-people').textContent = people.filter(o => o.kind !== 'pip').length || '';
@@ -397,7 +392,7 @@ async function start() {
   const ray=new T.Raycaster();
   const pins = places.map(p => {
     const el = document.createElement('button'); el.className='pin'; el.dataset.id=p.id; el.style.setProperty('--tone',p.tone);
-    el.textContent=p.name;el.setAttribute('aria-label','Visit '+p.name); el.onclick=()=>choose(p); el.hidden=true;
+    el.textContent=p.name;if(p.owner){const who=document.createElement('small');who.textContent='@'+p.owner;el.append(who);}el.setAttribute('aria-label','Visit '+p.name); el.onclick=()=>choose(p); el.hidden=true;
     $('pins').append(el);
     return {p,el,anchor:new T.Vector3(...p.point).add(new T.Vector3(0,p.detail ? .18 : p.id==='apartments' ? .7 : .49,0))};
   });
@@ -666,7 +661,7 @@ async function start() {
   }
   new ResizeObserver(resize).observe(view);resize();
   const loader=new T.GLTFLoader().setMeshoptDecoder(T.MeshoptDecoder);
-  asset=await loader.loadAsync('./assets/town.glb?v=ep3-market',e=>{
+  asset=await loader.loadAsync('./assets/town.glb?v=ep3-food',e=>{
     if(e.lengthComputable && e.total)$('map-status').textContent='Loading the town\u2026 '+Math.round(e.loaded/e.total*100)+'%';
   });
   asset.scene.traverse(o=>{
@@ -995,6 +990,21 @@ async function start() {
       uv.setXY(0,u,v);uv.setXY(1,u+1/cols,v);uv.setXY(2,u,v-1/rows);uv.setXY(3,u+1/cols,v-1/rows);uv.needsUpdate=true;
     };
     atlas={material,cellUV,index:o=>o?list.indexOf(o):list.length};
+    // The owner's handle on the front of each market pitch, drawn here so it stays sharp (3D lettering this
+    // small does not survive the model's compression). `sign` in the catalogue places one by hand.
+    for(const shop of places){
+      if(!shop.owner || !(shop.pitch || shop.sign))continue;
+      const plate=document.createElement('canvas');plate.width=640;plate.height=96;
+      const p=plate.getContext('2d');p.textAlign='center';p.textBaseline='middle';
+      p.beginPath();p.roundRect(3,3,634,90,14);p.fillStyle='#f7e6bf';p.fill();p.lineWidth=6;p.strokeStyle=shop.tone;p.stroke();
+      let size=58;const text='@'+shop.owner;
+      do{p.font='700 '+size+'px "DM Sans",Arial,sans-serif';size-=2;}while(p.measureText(text).width>590 && size>20);
+      p.fillStyle='#213f31';p.fillText(text,320,51);
+      const picture=new T.CanvasTexture(plate);picture.colorSpace=T.SRGBColorSpace;picture.anisotropy=8;
+      const way=shop.reverse?-1:1,[x,,z]=shop.point,[dx,y,dz,width]=shop.sign||[0,.0695,.1128,.31];
+      const board=new T.Mesh(new T.PlaneGeometry(width,width*.15),new T.MeshBasicMaterial({map:picture,color:0xe9e4d8}));
+      board.position.set(x+dx*way,y,z+dz*way);board.rotation.y=shop.reverse?Math.PI:0;scene.add(board);
+    }
     list.forEach((o,i)=>{
       const shape=new T.PlaneGeometry(1,.3);cellUV(shape,i);
       const mesh=new T.Mesh(shape,material);scene.add(mesh);

@@ -1,7 +1,7 @@
 // Every sound in the town is made here. The tune, the birds and the pasar malam are synthesised; the one
 // recording is the burger stall's "hus hus hus" (assets/hus.wav, by @thedrizzleshow, used with permission). Browsers only allow sound after a tap, so it starts on the first one.
 let ctx = null, master = null, hiss = null, timer = 0, tune = null, step = 0, due = 0, playing = false, market = 0, grill = null, murmur = null, callAt = 0, birdAt = 0;
-let muted = false;
+let muted = false, around = 0, atStall = false;
 try { muted = localStorage.getItem('taman-pip-mute') === '1'; } catch {}
 const listeners = new Set();
 
@@ -89,9 +89,11 @@ function tick() {
     }
   }
   if (market > .25 && now > callAt) {              // the burger stall calling across the market
-    if (clip) { round++; const [first] = HUS[round % 2], last = HUS[round % 2][2]; slice(now + .05, first[0], last[0] + last[1] - first[0], .75 * market); }   // the whole call, as recorded
-    else for (let i = 0; i < 3; i++) synthHus(now + .05 + i * .32, .34 * market, 150 - i * 6);
-    callAt = now + 5 + Math.random() * 5;
+    // Faint and seldom from across the market, full voice only right at the stalls; quiet under a game, whose folds make the sound themselves.
+    const close = Math.max(0, (around - .75) / .25), loud = atStall ? .16 : .05 + .6 * close * close;
+    if (clip) { round++; const [first] = HUS[round % 2], last = HUS[round % 2][2]; slice(now + .05, first[0], last[0] + last[1] - first[0], loud); }   // the whole call, as recorded
+    else for (let i = 0; i < 3; i++) synthHus(now + .05 + i * .32, loud * .45, 150 - i * 6);
+    callAt = now + (close > .5 || atStall ? 6 : 11) + Math.random() * 6;
   }
   if (tune === tunes.town && playing && market < .5 && now > birdAt) {   // a bird somewhere in the forest
     const base = 2600 + Math.random() * 1400, count = 2 + Math.floor(Math.random() * 3);
@@ -99,7 +101,6 @@ function tick() {
     birdAt = now + 4 + Math.random() * 7;
   }
 }
-let around = 0, atStall = false;
 function hear() { market = atStall ? 1 : around; level(grill, .05 * market); level(murmur, .11 * market); }
 function level(node, value) { if (ctx && node) node.gain.setTargetAtTime(value, ctx.currentTime, .4); }
 

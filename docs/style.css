@@ -204,3 +204,6 @@ button.tile:hover{background:#e9eee1}
 /* Narrow screens never show + and −, whatever kind of pointer the device reports, so the bar cannot collide. */
 @media(max-width:760px),(max-height:500px){.zoom #zoom-in,.zoom #zoom-out{display:none}.zoom button:last-child{border-left:0;border-radius:9px;width:42px}.tools .zoom{flex:none}.dock{flex:0 1 auto}}
 @media(max-width:400px){.tools .walk,.tools #open-places{padding:0 13px 0 11px;font-size:13.5px}}
+
+/* A market pitch's pin also names its owner. */
+.pin small{font-size:11px;font-weight:500;opacity:.7;margin-left:2px}
