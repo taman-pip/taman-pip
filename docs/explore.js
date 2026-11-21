@@ -1,3 +1,4 @@
+import { games, openGames } from './games.js';
 const places = [
   { id: 'market', name: 'Pasar Malam', type: 'Night market', tone: '#bb6845', point: [5.45, .16, 2.62], distance: 2.75, angle: 1.0, tilt: 1.03 },
   { id: 'gate', name: 'Town entrance', type: 'Welcome arch', tone: '#658052', point: [0, .15, 5.75], distance: 1.95, angle: .20, tilt: 1.22 },
@@ -19,6 +20,31 @@ const kinds = {
   stall: {label: 'Fried rice stall', where: 'Pasar Malam', tone: '#bb6845', near: 0, group: 'Pasar Malam'},
   pip: {label: 'Chairman\u2019s house', where: 'Town entrance', tone: '#7a2e35', near: 0, group: 'Chairman'}
 };
+// Easter eggs from the earlier films. Each is found once; the count is kept on this device.
+const eggs = {
+  moon: {from: 'Episode 5 \u00b7 The Town That Never Looked at the Moon', line: '\u201cAnd the moon looked back.\u201d', note: 'Quick. Use a mirror.'},
+  roadster: {from: 'Episode 6 \u00b7 Pip\u2019s Flying Roadster', line: '\u201cPip\u2026 can it go Genting?\u201d', note: 'Toll not paid.'},
+  gate: {from: 'Taman Pip \u00b7 Episode 1', line: 'Please don\u2019t park at this gate.', note: 'Not even for \u201c5 MINIT\u201d.'},
+  guard: {from: 'Taman Pip \u00b7 Episode 1', line: '\u201cWhy their house bigger than mine?\u201d', note: 'The mansions have their own guardhouse. It has one plastic chair.'},
+  eggs: {from: 'Episode 3 \u00b7 Costco Malaysia', line: '\u201c\u2026Eggs.\u201d', note: 'He only came in for one thing.'},
+  look: {from: 'Episode 4 \u00b7 What If Malaysia Got Disneyland Before Singapore?', line: '\u201cI\u2019m just here to look.\u201d', note: 'Castle view, mah. Breakfast extra.'},
+  seat: {from: 'Imagine This Ah\u2026 \u00b7 The Queue That Never Ended', line: 'Reserved.', note: 'A tissue packet is holding this seat.'}
+};
+const eggWords = {eggs: 'eggs', egg: 'eggs', telur: 'eggs', disneyland: 'look', castle: 'look', moon: 'moon', bulan: 'moon', genting: 'roadster', roadster: 'roadster'};
+let eggsFound = [];
+try { eggsFound = JSON.parse(localStorage.getItem('taman-pip-eggs') || '[]').filter(id => eggs[id]); } catch {}
+let eggTimer = 0, lastWord = '';
+function eggCount() { $('egg-count').textContent = eggsFound.length + ' of ' + Object.keys(eggs).length + ' found'; }
+function found(id) {
+  const egg = eggs[id], fresh = !eggsFound.includes(id);
+  if (fresh) { eggsFound.push(id); try { localStorage.setItem('taman-pip-eggs', JSON.stringify(eggsFound)); } catch {} }
+  $('egg-from').textContent = egg.from; $('egg-line').textContent = egg.line; $('egg-note').textContent = egg.note;
+  $('egg-tally').textContent = (fresh ? 'Easter egg found \u00b7 ' : 'Found before \u00b7 ') + eggsFound.length + ' of ' + Object.keys(eggs).length;
+  $('egg').hidden = false; eggCount();
+  clearTimeout(eggTimer); eggTimer = setTimeout(() => { $('egg').hidden = true; }, 7000);
+}
+$('egg').onclick = () => { $('egg').hidden = true; };
+eggCount();
 const params = new URLSearchParams(location.search);
 let people = [];
 let person = null;      // the house being visited
@@ -28,6 +54,7 @@ let tab = 'people';
 let active = null;
 let showPerson;
 let walking = false;
+let atMarket = false;   // the walker is standing among the stalls
 let startWalk;
 let stopWalk;
 let navigate;
@@ -81,7 +108,12 @@ function marks() {
     button.setAttribute('aria-current', String(button.dataset.id === (active?.id ?? (person && '@' + person.u))));
   }
 }
+function playButton() {
+  $('play').hidden = !(active?.id === 'market' || person?.kind === 'stall' || (walking && atMarket));
+}
+$('play').onclick = () => openGames(null, me?.u);
 function card() {
+  playButton();
   $('card').hidden = !person;
   document.body.classList.toggle('has-card', !!person);
   if (!person) return;
@@ -127,7 +159,7 @@ $('card-close').onclick = () => { const low = street; person = null; street = fa
 $('card-as').onclick = () => { me = person; identity(); directory(); startWalk?.(); };
 $('card-leave').onclick = () => { me = null; identity(); directory(); card(); remember(); wake?.(); };
 $('walk').onclick = () => walking ? stopWalk() : startWalk?.();
-$('card-street').onclick = () => { street = !street; card(); showPerson?.(); };
+$('card-street').onclick = () => { street = !street; card(); showPerson?.(); if (street && person.kind === 'pip') found('gate'); };
 $('card-share').onclick = async () => {
   const url = location.origin + location.pathname + '?u=' + person.u;
   const label = $('card-share').querySelector('span');
@@ -153,6 +185,17 @@ function choose(place) {
 function heading(text) {
   const h = document.createElement('h3'); h.className = 'group'; h.textContent = text; $('places').append(h);
 }
+function gameRow(game) {
+  const b = document.createElement('button');
+  b.className = 'place person';
+  const lot = document.createElement('span'); lot.className = 'lot'; lot.style.setProperty('--tone', game.tone); lot.textContent = 'Play';
+  const words = document.createElement('span');
+  const title = document.createElement('strong'); title.textContent = game.name;
+  const type = document.createElement('small'); type.textContent = game.stall;
+  words.append(title, type); b.append(lot, words);
+  b.onclick = () => { if (mobile.matches) drawer(false, false); openGames(game.id, me?.u); };
+  $('places').append(b);
+}
 function placeRow(p) {
   const b = document.createElement('button');
   b.className = 'place'; b.dataset.id = p.id;
@@ -177,10 +220,15 @@ function personRow(o) {
 }
 function directory() {
   const query = $('search').value.trim().toLowerCase().replace(/^@/, '');
+  if (eggWords[query] && query !== lastWord) found(eggWords[query]);
+  lastWord = query;
   const foundPlaces = places.filter(p => (p.name + ' ' + p.type).toLowerCase().includes(query));
   const foundPeople = people.filter(o => (o.u + ' ' + o.lot + ' ' + kinds[o.kind].label + ' ' + kinds[o.kind].where).toLowerCase().includes(query));
   $('count-people').textContent = people.filter(o => o.kind !== 'pip').length || '';
   $('count-places').textContent = places.length;
+  $('count-games').textContent = games.length;
+  $('tab-games').setAttribute('aria-selected', String(tab === 'games'));
+  const foundGames = games.filter(o => (o.name + ' ' + o.stall + ' game games').toLowerCase().includes(query));
   $('tab-people').setAttribute('aria-selected', String(tab === 'people'));
   $('tab-places').setAttribute('aria-selected', String(tab === 'places'));
   document.querySelector('.tabs').hidden = !!query;
@@ -188,12 +236,14 @@ function directory() {
   if (query) {
     if (foundPeople.length) { heading('Neighbours'); foundPeople.forEach(personRow); }
     if (foundPlaces.length) { heading('Places'); foundPlaces.forEach(placeRow); }
-    if (!foundPeople.length && !foundPlaces.length) {
+    if (foundGames.length) { heading('Games'); foundGames.forEach(gameRow); }
+    if (!foundPeople.length && !foundPlaces.length && !foundGames.length) {
       const empty = document.createElement('p'); empty.className = 'empty';
       empty.textContent = 'Nobody and nowhere by that name yet. Usernames are spelled as on Instagram.';
       $('places').append(empty);
     }
   } else if (tab === 'places') foundPlaces.forEach(placeRow);
+  else if (tab === 'games') { heading('Pasar malam stalls'); games.forEach(gameRow); }
   else if (!people.length) {
     const empty = document.createElement('p'); empty.className = 'empty'; empty.textContent = 'Loading the neighbours\u2026'; $('places').append(empty);
   } else {
@@ -207,6 +257,8 @@ function directory() {
 }
 $('tab-people').onclick = () => { tab = 'people'; directory(); };
 $('tab-places').onclick = () => { tab = 'places'; directory(); };
+$('tab-games').onclick = () => { tab = 'games'; directory(); };
+if (params.get('game')) openGames(params.get('game'));
 $('search').onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); $('places').querySelector('button')?.click(); } };
 $('search').oninput = directory;
 directory();
@@ -273,6 +325,56 @@ async function start() {
     return {kind,el,anchor:new T.Vector3()};
   });
   const tags = [];
+  // In the sky: the moon from episode 5 sits low in the north; the roadster from episode 6 flies over now and then.
+  function picture(w,h,paint) {
+    const c=document.createElement('canvas');c.width=w;c.height=h;paint(c.getContext('2d'));
+    const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;return t;
+  }
+  const moonFace=open=>picture(256,256,g=>{
+    g.fillStyle='#f4efdc';g.beginPath();g.arc(128,128,118,0,7);g.fill();
+    g.fillStyle='#e2dcc4';for(const [x,y,r] of [[80,84,20],[168,70,13],[186,150,24],[92,176,15],[140,206,10]]){g.beginPath();g.arc(x,y,r,0,7);g.fill();}
+    if(!open)return;
+    g.fillStyle='#fbf8ec';g.beginPath();g.ellipse(128,128,84,54,0,0,7);g.fill();
+    g.fillStyle='#c98a2b';g.beginPath();g.arc(128,128,46,0,7);g.fill();
+    g.fillStyle='#1d1a16';g.beginPath();g.ellipse(128,128,13,40,0,0,7);g.fill();
+    g.fillStyle='#fff';g.beginPath();g.arc(112,110,8,0,7);g.fill();
+    g.strokeStyle='#8a8266';g.lineWidth=7;g.beginPath();g.ellipse(128,128,84,54,0,0,7);g.stroke();
+  });
+  const moonLooks=[new T.MeshBasicMaterial({map:moonFace(false),transparent:true,opacity:.9}),new T.MeshBasicMaterial({map:moonFace(true),transparent:true})];
+  const moon=new T.Mesh(new T.PlaneGeometry(2.4,2.4),moonLooks[0]);moon.position.set(-3,2.3,-15);scene.add(moon);
+  const car=new T.Mesh(new T.PlaneGeometry(2.2,.88),new T.MeshBasicMaterial({transparent:true,map:picture(400,160,g=>{
+    g.fillStyle='#ffffffb0';for(let i=0;i<7;i++){g.beginPath();g.arc(20+i*22,96-(i%2)*8,10+i*2.4,0,7);g.fill();}   // vapour
+    g.fillStyle='#b3261e';g.beginPath();g.moveTo(170,104);g.quadraticCurveTo(176,78,214,74);g.lineTo(250,52);g.lineTo(304,52);g.quadraticCurveTo(330,72,372,82);g.quadraticCurveTo(392,88,388,108);g.lineTo(170,108);g.closePath();g.fill();
+    g.fillStyle='#22303a';g.beginPath();g.moveTo(256,58);g.lineTo(300,58);g.quadraticCurveTo(318,70,330,76);g.lineTo(236,76);g.closePath();g.fill();
+    g.fillStyle='#f1e2c6';g.beginPath();g.ellipse(276,60,11,14,0,0,7);g.fill();                                        // an egg at the wheel
+    g.fillStyle='#1c1c1e';for(const x of [214,340]){g.beginPath();g.ellipse(x,112,24,9,0,0,7);g.fill();}           // wheels folded flat
+    g.fillStyle='#ffd97a';g.beginPath();g.ellipse(384,94,5,7,0,0,7);g.fill();
+  })}));
+  car.visible=false;scene.add(car);
+  let trip=null,moonOpen=0;
+  const from=new T.Vector3(),to=new T.Vector3();
+  function fly_over() {
+    if(document.hidden || trip)return;
+    const side=Math.random()<.5?1:-1;
+    from.set(-13*side,3.4,rand(-2,5));to.set(13*side,4.6,rand(-7,0));
+    trip={start:performance.now(),length:9000};car.visible=true;wake();
+  }
+  const rand=(a,b)=>a+Math.random()*(b-a);
+  setTimeout(fly_over,14000);setInterval(fly_over,55000);
+  function skyTap(px,py,rect) {
+    for(const [mesh,id,wide,press] of [[moon,'moon',2.4],[car,'roadster',2.2],...tappable]) {
+      if(!mesh.visible)continue;
+      point.copy(mesh.position).project(camera);
+      if(point.z>1||point.z<-1)continue;
+      const reach=wide*rect.height/(2*Math.tan(camera.fov*Math.PI/360)*camera.position.distanceTo(mesh.position))/2;
+      if(Math.hypot((point.x+1)*rect.width/2-px,(1-point.y)*rect.height/2-py)>Math.max(26,reach))continue;
+      press?.();
+      if(id==='moon'){moon.material=moonLooks[1];moonOpen=performance.now();setTimeout(()=>{moon.material=moonLooks[0];wake();},4200);wake();}
+      found(id);return true;
+    }
+    return false;
+  }
+  let props=null, busy=false, tappable=[];
   let framed='', grid=null, hero=null, atlas=null, moving=false, asset=null;
   let frame=0, flight=null, loaded=false, atHome=true, dragStart=null;
   const homeTarget = new T.Vector3(0,.13,-.15);
@@ -304,6 +406,7 @@ async function start() {
       if(t===1) flight=null;
     }
     if(walking)stride(now);
+    props?.(now);
     shift.copy(controls.target);controls.target.x=T.MathUtils.clamp(shift.x,-9.15,9.15);controls.target.z=T.MathUtils.clamp(shift.z,-9.15,9.15);
     controls.target.y=T.MathUtils.clamp(shift.y,0,1.7);
     camera.position.sub(shift.sub(controls.target));
@@ -326,6 +429,18 @@ async function start() {
       hero.tag.quaternion.copy(camera.quaternion);
       const s=T.MathUtils.clamp(camera.position.distanceTo(hero.root.position)*.13,.14,.34);
       hero.tag.scale.set(s,s,1);hero.tag.position.copy(hero.root.position);hero.tag.position.y+=.135+s*.15;
+    }
+    moon.quaternion.copy(camera.quaternion);
+    if(trip) {
+      const t=(now-trip.start)/trip.length;
+      if(t>=1){trip=null;car.visible=false;}
+      else {
+        car.position.lerpVectors(from,to,t);car.position.y+=Math.sin(t*Math.PI*6)*.08;
+        car.quaternion.copy(camera.quaternion);
+        // The picture drives to the right: mirror it when the flight runs right to left on screen.
+        const a=point.copy(from).project(camera).x,b=shift.copy(to).project(camera).x;
+        car.scale.x=b>=a?1:-1;
+      }
     }
     // Rooftop name tags face the camera and grow a little with distance so they stay findable.
     for (const tag of tags) {
@@ -367,7 +482,7 @@ async function start() {
         used.push(r);
       }
     }
-    if(flight || (walking && moving))wake();
+    if(flight || trip || busy || (walking && moving))wake();
   }
   wake=()=>{if(!frame)frame=requestAnimationFrame(render);};
   controls.addEventListener('change',wake);
@@ -377,8 +492,9 @@ async function start() {
   renderer.domElement.addEventListener('pointerup',e=>{
     const d=dragStart;dragStart=null;
     // A tap (not a drag) on or near a rooftop tag opens that house.
-    if(walking || !d || !d[3] || !tags.length || performance.now()-d[2]>450 || Math.hypot(e.clientX-d[0],e.clientY-d[1])>6)return;
+    if(!d || !d[3] || performance.now()-d[2]>450 || Math.hypot(e.clientX-d[0],e.clientY-d[1])>6)return;
     const rect=view.getBoundingClientRect(),px=e.clientX-rect.left,py=e.clientY-rect.top;
+    if(skyTap(px,py,rect) || walking || !tags.length)return;
     let best=null,reach=1e9;
     for (const tag of tags) {
       point.copy(tag.mesh.position).project(camera);
@@ -468,6 +584,7 @@ async function start() {
     // Mark every map cell that has something solid between ankle and shoulder height.
     grid=new Uint8Array(SIDE*SIDE);
     const a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3();
+    for(let z=5.21;z<=5.47;z+=CELL/2)for(let x=-.30;x<=-.19;x+=CELL/2)grid[Math.floor((z+HALF)/CELL)*SIDE+Math.floor((x+HALF)/CELL)]=1;   // Pip's roadster
     asset.scene.updateMatrixWorld(true);
     asset.scene.traverse(o=>{
       if(!o.isMesh)return;
@@ -529,6 +646,100 @@ async function start() {
     hero.suit=new T.Mesh(lathe(rings,20),hero.body.children[0].material);hero.suit.position.y=.008;hero.body.add(hero.suit);
     atlas.cellUV(hero.tag.geometry,atlas.index(who));
   }
+  const pipGate=people.find(o=>o.kind==='pip')?.g||[-.28,5.05];
+  const spots=[{id:'gate',x:pipGate[0],z:pipGate[1],r:.2},{id:'guard',x:.62,z:-3.1,r:.5},{id:'seat',x:.45,z:3.5,r:.3}];
+  // ---- Things that move: the boom gates, the guard, and Pip's roadster.
+  const tint=new T.Color(), flat=new T.MeshLambertMaterial({vertexColors:true,side:2});
+  function prism(out,profile,x0,x1,hex) {        // a [forward, up] outline pushed across x0..x1
+    tint.set(hex);
+    const at=(x,i)=>[x,profile[i][1],profile[i][0]];
+    const tri=(...corners)=>{for(const v of corners){out.pos.push(...v);out.col.push(tint.r,tint.g,tint.b);}};
+    for(let i=1;i<profile.length-1;i++){tri(at(x1,0),at(x1,i),at(x1,i+1));tri(at(x0,0),at(x0,i+1),at(x0,i));}
+    for(let i=0;i<profile.length;i++){const j=(i+1)%profile.length;tri(at(x0,i),at(x0,j),at(x1,j));tri(at(x0,i),at(x1,j),at(x1,i));}
+  }
+  const block=(out,x,y,z,w,h,d,hex)=>prism(out,[[z-d/2,y-h/2],[z+d/2,y-h/2],[z+d/2,y+h/2],[z-d/2,y+h/2]],x-w/2,x+w/2,hex);
+  function solidMesh(out) {
+    const shape=new Geometry();
+    shape.setAttribute('position',new Attribute(out.pos,3));shape.setAttribute('color',new Attribute(out.col,3));
+    shape.computeVertexNormals();return new T.Mesh(shape,flat);
+  }
+  const fresh=()=>({pos:[],col:[]});
+  // Boom gates: the arms were left out of the town model so they can swing. The main gate has a guard;
+  // the mansion gate keeps its empty plastic chair and opens on its own.
+  const gates=[{at:[.56,.066,5.39],guard:[.70,5.56]},{at:[.56,.146,-2.96]}].map(spec=>{
+    const out=fresh();
+    for(let j=0;j<11;j++)block(out,-(.03+j*.05),0,0,.05,.012,.012,j%2?'#c8392e':'#f3efe6');
+    const arm=solidMesh(out);arm.position.set(...spec.at);scene.add(arm);
+    let guard=null;
+    if(spec.guard) {
+      guard=new Group();
+      const rings=[];
+      for(let i=0;i<=14;i++){const t=i/14*Math.PI,y=.054*(1-Math.cos(t));rings.push([eggRadius(t),y,y<.05?'#2f4e6e':'#f1e2c6']);}
+      const body=new T.Mesh(lathe(rings,18),new T.MeshLambertMaterial({vertexColors:true}));body.position.y=.008;guard.add(body);
+      const cap=new T.Mesh(ball(.026,'#22384f'),body.material);cap.scale.set(1,.5,1);cap.position.y=.104;guard.add(cap);
+      const brim=new T.Mesh(ball(.016,'#22384f'),body.material);brim.scale.set(1.3,.22,1);brim.position.set(0,.106,.024);guard.add(brim);
+      for(const side of [-1,1]) {
+        const eye=new T.Mesh(ball(.0058,'#2a2320'),body.material);eye.scale.set(1,1.25,.6);
+        const r=eggRadius(Math.acos(1-2*.072/.108));eye.position.set(Math.sin(side*.36)*r,.074,Math.cos(.36)*r-.002);guard.add(eye);
+        const foot=new T.Mesh(ball(.013,'#3b2a20'),body.material);foot.scale.set(1,.55,1.5);foot.position.set(side*.019,0,.006);guard.add(foot);
+      }
+      guard.position.set(spec.guard[0],0,spec.guard[1]);guard.rotation.y=Math.PI;scene.add(guard);
+    }
+    return {arm,guard,open:0,x:spec.at[0]-.28,z:spec.at[2],hop:0};
+  });
+  // Pip's roadster from episode 6, parked at the kerb outside his gate. The same outline as the film car.
+  const W_=.17, home=new T.Vector3(-.245,.002,5.34);
+  const roadster=new Group(), shell=fresh();
+  prism(shell,[[.040,.018],[.188,.018],[.200,.026],[.201,.040],[.190,.050],[.120,.060],[.040,.070]],-W_/2,W_/2,'#b3201f');
+  prism(shell,[[-.198,.020],[-.085,.020],[-.085,.073],[-.120,.075],[-.180,.068],[-.199,.052]],-W_/2,W_/2,'#b3201f');
+  for(const side of [-1,1])prism(shell,[[-.085,.020],[.040,.020],[.040,.070],[-.085,.073]],side*W_/2,side*(W_/2-.008),'#b3201f');
+  block(shell,0,.023,-.022,W_-.004,.010,.13,'#1e1c1b');
+  for(const side of [-1,1]){block(shell,side*.037,.035,-.035,.05,.010,.046,'#3a3430');block(shell,side*.037,.066,-.065,.05,.06,.010,'#3a3430');}
+  prism(shell,[[.042,.070],[.018,.104],[.014,.104],[.038,.070]],-W_/2+.014,W_/2-.014,'#3d5560');
+  for(const side of [-1,1])block(shell,side*.052,.045,.196,.034,.006,.010,'#f7f1e2');
+  block(shell,0,.056,-.199,W_-.03,.005,.004,'#e0282a');
+  roadster.add(solidMesh(shell));
+  const round=(r,n=14)=>Array.from({length:n},(_,i)=>[Math.cos(i/n*Math.PI*2)*r,Math.sin(i/n*Math.PI*2)*r]);
+  const wheels=[];
+  for(const side of [-1,1])for(const z of [-.128,.128]) {
+    const out=fresh();prism(out,round(.027),-.012,.012,'#1c1c1e');prism(out,round(.016,10),side*.011,side*.014,'#c9cccf');
+    const wheel=solidMesh(out);wheel.position.set(side*(W_/2-.004),.027,z);wheel.userData.side=side;roadster.add(wheel);wheels.push(wheel);
+  }
+  roadster.scale.setScalar(.6);roadster.position.copy(home);roadster.rotation.y=Math.PI;scene.add(roadster);
+  let hop=null, propClock=0;
+  tappable.push([roadster,'roadster',.3,()=>{if(!hop){hop={start:performance.now(),length:6200,last:home.clone()};wake();}}]);
+  props=now=>{
+    const dt=Math.min(.05,(now-propClock)/1000||0);propClock=now;busy=false;
+    for(const gate of gates) {
+      const near=walking && hero && Math.hypot(hero.x-gate.x,hero.z-gate.z)<.8;
+      const goal=near?1:0;
+      if(near && gate.open===0)gate.hop=.45;
+      if(gate.open!==goal){gate.open=clamp(gate.open+(goal?dt:-dt)*2.2,0,1);busy=true;}
+      const ease=gate.open*gate.open*(3-2*gate.open);
+      gate.arm.rotation.z=-ease*1.4;
+      if(gate.guard) {
+        if(gate.hop>0){gate.hop=Math.max(0,gate.hop-dt);busy=true;}
+        gate.guard.position.y=Math.sin((1-gate.hop/.45)*Math.PI)*.03*(gate.hop>0?1:0);
+        if(near)gate.guard.rotation.y=Math.atan2(hero.x-gate.guard.position.x,hero.z-gate.guard.position.z);
+      }
+    }
+    if(hop) {                                    // up, once round above the house, and down on the same spot
+      const t=(now-hop.start)/hop.length;busy=true;
+      if(t>=1){hop=null;roadster.position.copy(home);roadster.rotation.set(0,Math.PI,0);for(const w of wheels)w.rotation.z=0;}
+      else {
+        const k=t*t*(3-2*t),turn=k*Math.PI*2,wide=Math.sin(Math.PI*t)*.75,lift=Math.pow(Math.sin(Math.PI*t),.6)*1.05;
+        point.set(home.x+Math.sin(turn)*wide,home.y+lift,home.z-(1-Math.cos(turn))*wide*.8);
+        const dx=point.x-hop.last.x,dz=point.z-hop.last.z,level=clamp((Math.min(t,1-t)-.04)/.12,0,1);
+        if(Math.hypot(dx,dz)>1e-4) {
+          const want=Math.atan2(dx,dz),gap=Math.atan2(Math.sin(want-Math.PI),Math.cos(want-Math.PI));
+          roadster.rotation.y=Math.PI+gap*level;roadster.rotation.z=-Math.sin(turn)*.35*level;
+        }
+        roadster.position.copy(point);hop.last.copy(point);
+        for(const w of wheels)w.rotation.z=w.userData.side*level*Math.PI/2;   // wheels fold flat in the air
+      }
+    }
+  };
+  const clamp=T.MathUtils.clamp;
   const keys={};let stickX=0,stickY=0,clock=0;
   function stride(now) {
     const dt=Math.min(.05,(now-clock)/1000||0);clock=now;
@@ -544,6 +755,13 @@ async function start() {
       hero.heading+=gap*Math.min(1,dt*12);hero.phase+=dt*15*Math.min(1,push);
       const ny=groundAt(nx,nz),mx=nx-hero.x,my=ny-hero.y,mz=nz-hero.z;
       hero.x=nx;hero.y=ny;hero.z=nz;
+      for(const spot of spots) {
+        const here=Math.hypot(nx-spot.x,nz-spot.z)<spot.r;
+        if(here && !spot.in)found(spot.id);
+        spot.in=here;
+      }
+      const among=Math.hypot(nx-5.45,nz-2.75)<1.25;
+      if(among!==atMarket){atMarket=among;playButton();}
       controls.target.x+=mx;controls.target.y+=my;controls.target.z+=mz;
       camera.position.x+=mx;camera.position.y+=my;camera.position.z+=mz;
     }
@@ -565,6 +783,7 @@ async function start() {
     }
     hero.x=x;hero.z=z;hero.y=groundAt(x,z);hero.heading=me?me.face:Math.PI;hero.phase=0;
     hero.root.visible=hero.tag.visible=true;
+    atMarket=Math.hypot(x-5.45,z-2.75)<1.25;
     walking=true;person=null;active=null;street=false;stickX=stickY=0;for(const k in keys)keys[k]=false;
     card();marks();remember();
     for(const pin of $('pins').children)pin.classList.remove('current');
@@ -582,7 +801,7 @@ async function start() {
   };
   stopWalk=()=>{
     if(!walking)return;
-    walking=false;moving=false;hero.root.visible=hero.tag.visible=false;
+    walking=false;moving=false;hero.root.visible=hero.tag.visible=false;playButton();
     document.body.classList.remove('walking');$('walk').setAttribute('aria-pressed','false');$('walk-label').textContent='Walk';
     $('view-name').textContent='Town overview';wake();
   };

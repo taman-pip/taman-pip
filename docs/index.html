@@ -36,6 +36,9 @@
   <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
   <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V3m0 0L8 7m4-4 4 4M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7"/></symbol>
   <symbol id="i-walk" viewBox="0 0 24 24"><circle cx="13" cy="4.5" r="2"/><path d="m9 21 2-6-2.5-2.5L10 8l4 1.5 2 3 3 1M10 8 7 9.5 6 13m7 8-1-5"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
+  <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L12 18V6L7.5 9.5zM15.5 9a4 4 0 0 1 0 6m2.5-9a8 8 0 0 1 0 12"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
   <symbol id="i-hand" viewBox="0 0 24 24"><path d="M8 12V6a1.5 1.5 0 0 1 3 0v5-7a1.5 1.5 0 0 1 3 0v7-5a1.5 1.5 0 0 1 3 0v6-3a1.5 1.5 0 0 1 3 0v6c0 5-3 7-7 7-3 0-5-2-7-5l-3-4a1.5 1.5 0 0 1 2-2l3 2z"/></symbol>
 </defs></svg>
 <header class="topbar">
@@ -59,6 +62,7 @@
       <div class="modes" aria-label="Drag mode"><button id="orbit" aria-pressed="true"><svg><use href="#i-orbit"/></svg><span>Orbit</span></button><button id="pan" aria-pressed="false"><svg><use href="#i-hand"/></svg><span>Pan</span></button></div>
       <div class="zoom"><button id="zoom-in" aria-label="Zoom in" title="Zoom in"><svg><use href="#i-plus"/></svg></button><button id="zoom-out" aria-label="Zoom out" title="Zoom out"><svg><use href="#i-minus"/></svg></button><button id="reset" aria-label="Reset town view" title="Reset town view"><svg><use href="#i-reset"/></svg></button></div>
     </div>
+    <button id="play" class="play" hidden><svg><use href="#i-play"/></svg>Play the stall games</button>
     <button id="walk" class="walk" aria-pressed="false" hidden><svg><use href="#i-walk"/></svg><span id="walk-label">Walk</span></button>
     <div id="stick" aria-hidden="true"><span id="stick-knob"></span></div>
     <p id="walk-hint">Move with the stick or W A S D · Drag to look around</p>
@@ -73,14 +77,24 @@
   <aside id="directory" aria-label="Town directory">
     <div class="directory-top"><div class="directory-title"><h1>Town directory</h1><button id="close-places" class="plain" aria-label="Close directory"><svg><use href="#i-close"/></svg></button></div>
       <label class="search"><svg><use href="#i-search"/></svg><input id="search" type="search" placeholder="Find a place or @username" aria-label="Find a place or username" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="search"></label>
-      <div class="tabs" role="tablist" aria-label="Directory"><button id="tab-people" role="tab" aria-selected="true">Neighbours <span id="count-people"></span></button><button id="tab-places" role="tab" aria-selected="false">Places <span id="count-places"></span></button></div>
+      <div class="tabs" role="tablist" aria-label="Directory"><button id="tab-people" role="tab" aria-selected="true">Neighbours <span id="count-people"></span></button><button id="tab-places" role="tab" aria-selected="false">Places <span id="count-places"></span></button><button id="tab-games" role="tab" aria-selected="false">Games <span id="count-games"></span></button></div>
     </div>
     <nav id="places" aria-label="Places to visit"></nav>
     <div class="milestone"><div class="milestone-icon"><svg><use href="#i-build"/></svg></div><div><h2>Next up: the condo</h2><p id="milestone-text">57 more apartments to fill.</p></div></div>
   </aside>
 </main>
 <dialog id="guide"><div class="directory-title"><h2>How to explore</h2><button id="close-help" class="plain" aria-label="Close help"><svg><use href="#i-close"/></svg></button></div>
-  <dl><dt>Rotate</dt><dd>Drag with one finger or your mouse.</dd><dt>Zoom</dt><dd>Pinch, scroll, or use the + and − buttons.</dd><dt>Move around</dt><dd>Slide two fingers or choose Pan and drag.</dd><dt>Find a house</dt><dd>Search a username, or tap a name tag on a roof.</dd><dt>Walk around</dt><dd>Choose Walk, then steer with the on-screen stick or W A S D. Drag to look around, pinch or scroll to zoom.</dd><dt>Explore as a neighbour</dt><dd>Open a house and choose Explore as. You start at your own gate, the town remembers you, and Share gives you a link to your house.</dd><dt>Visit a place</dt><dd>Select a map pin or a place in the directory.</dd><dt>Keyboard</dt><dd>Focus the map. Arrow keys pan, + and − zoom, and Home returns to the overview.</dd></dl>
+  <dl><dt>Rotate</dt><dd>Drag with one finger or your mouse.</dd><dt>Zoom</dt><dd>Pinch, scroll, or use the + and − buttons.</dd><dt>Move around</dt><dd>Slide two fingers or choose Pan and drag.</dd><dt>Find a house</dt><dd>Search a username, or tap a name tag on a roof.</dd><dt>Walk around</dt><dd>Choose Walk, then steer with the on-screen stick or W A S D. Drag to look around, pinch or scroll to zoom.</dd><dt>Stall games</dt><dd>Open the Games tab, or visit the Pasar Malam, for four quick games: wrap, flip, toss and gepuk.</dd><dt>Easter eggs <span id="egg-count"></span></dt><dd>Seven things from the earlier films are hidden here. Look at the sky, take a walk past Pip’s gate, the mansion guardhouse and the bus stop, and try searching for what Pip went shopping for.</dd><dt>Explore as a neighbour</dt><dd>Open a house and choose Explore as. You start at your own gate, the town remembers you, and Share gives you a link to your house.</dd><dt>Visit a place</dt><dd>Select a map pin or a place in the directory.</dd><dt>Keyboard</dt><dd>Focus the map. Arrow keys pan, + and − zoom, and Home returns to the overview.</dd></dl>
+</dialog>
+<button id="egg" hidden><small id="egg-from"></small><strong id="egg-line"></strong><span id="egg-note"></span><em id="egg-tally"></em></button>
+<dialog id="arcade" aria-labelledby="arcade-title">
+  <div class="arcade-top"><button id="arcade-back" class="plain" aria-label="All games" hidden><svg><use href="#i-back"/></svg></button><div class="arcade-name"><small id="arcade-stall"></small><h2 id="arcade-title"></h2></div><button id="arcade-sound" class="plain" aria-label="Sound" aria-pressed="true"><svg><use href="#i-sound"/></svg></button><button id="arcade-close" class="plain" aria-label="Close games"><svg><use href="#i-close"/></svg></button></div>
+  <div id="arcade-hud" class="arcade-hud"><strong id="arcade-score">0</strong><span id="arcade-lives" aria-label="Lives"></span><div id="arcade-time" class="arcade-time"><i></i></div></div>
+  <div class="arcade-stage"><canvas id="arcade-canvas" width="360" height="400"></canvas>
+    <div id="arcade-panel"><div id="arcade-menu"></div>
+      <div id="arcade-brief"><p id="arcade-result"></p><p id="arcade-how"></p><p id="arcade-best"></p><button id="arcade-go" class="primary">Start</button><button id="arcade-share" hidden>Share score</button></div>
+    </div>
+  </div>
 </dialog>
 <noscript><p class="noscript">Turn on JavaScript to explore Taman Pip in 3D.</p></noscript>
 </body></html>
