@@ -1,5 +1,5 @@
-import { games, openGames } from './games.js?v=202611211636';
-import { sound } from './sound.js?v=202611211636';
+import { games, openGames } from './games.js?v=202611212302';
+import { sound } from './sound.js?v=202611212302';
 const places = [
   { id: 'market', name: 'Pasar Malam', type: 'Night market', tone: '#bb6845', point: [6.58, .14, 3.14], distance: 4.5, angle: .35, tilt: .91 },
   { id: 'gate', name: 'Town entrance', type: 'Welcome arch', tone: '#658052', point: [0, .15, 5.75], distance: 1.95, angle: .20, tilt: 1.22 },
@@ -502,7 +502,7 @@ async function start() {
     }
     return false;
   }
-  let props=null, busy=false, tappable=[], heard=0;
+  let props=null, busy=false, tappable=[], heard=0, lazy=false, drawn=0, stirred=0, folkBusy=false;
   let framed='', grid=null, hero=null, atlas=null, moving=false, asset=null;
   let frame=0, flight=null, loaded=false, atHome=true, dragStart=null;
   const homeTarget = new T.Vector3(0,.13,-.15);
@@ -525,6 +525,9 @@ async function start() {
   }
   function render(now) {
     frame=0;
+    // With only the townsfolk moving, half the frame rate is plenty and kinder to a phone's battery.
+    if(lazy && now-drawn<30 && now-stirred>300){frame=requestAnimationFrame(render);return;}
+    drawn=now;
     if(flight) {
       const f=flight,t=f.duration?Math.min(1,(now-f.start)/f.duration):1,k=t*t*(3-2*t);
       controls.target.lerpVectors(f.from,f.to,k);
@@ -621,10 +624,12 @@ async function start() {
         used.push(r);
       }
     }
+    lazy=false;
     if(flight || trip || busy || moonLook || (walking && moving))wake();
+    else if(folkBusy){lazy=true;wake();}
   }
   wake=()=>{if(!frame)frame=requestAnimationFrame(render);};
-  controls.addEventListener('change',wake);
+  controls.addEventListener('change',()=>{stirred=performance.now();wake();});
   controls.addEventListener('start',()=>{flight=null; $('gesture-hint').hidden=true;});
   renderer.domElement.addEventListener('pointerdown',e=>{dragStart=[e.clientX,e.clientY,performance.now(),e.isPrimary];});
   renderer.domElement.addEventListener('pointermove',e=>{if(dragStart && Math.hypot(e.clientX-dragStart[0],e.clientY-dragStart[1])>3)atHome=false;});
@@ -770,6 +775,15 @@ async function start() {
   const ball=(r,hex,rings=7)=>lathe(Array.from({length:rings+1},(_,i)=>[Math.sin(i/rings*Math.PI)*r,r-Math.cos(i/rings*Math.PI)*r,hex]),12);
   const eggRadius=t=>.041*Math.sin(t)*(1+.2*Math.cos(t));      // wider below the middle
   const outfits=['#b0503f','#3f6f8f','#c58a2b','#5b7d4a','#7a4c7e','#2f7f78','#b5617f','#56609c'];
+  function eggRings(suit,shell) {
+    const rings=[];
+    for(let i=0;i<=14;i++) {
+      const t=i/14*Math.PI,y=.054*(1-Math.cos(t));
+      if(rings.length && rings.at(-1)[1]<.047 && y>=.047){rings.push([eggRadius(Math.acos(1-.047/.054)),.047,suit],[eggRadius(Math.acos(1-.047/.054)),.047,shell]);}
+      rings.push([eggRadius(t),y,y<.047?suit:shell]);
+    }
+    return rings;
+  }
   function buildHero() {
     const paint=new T.MeshLambertMaterial({vertexColors:true});
     const root=new Group(),body=new Group();
@@ -789,18 +803,189 @@ async function start() {
   function dress(who) {                          // shell on top, an outfit colour picked from the username below
     let h=7;for(const ch of who?who.u:'visitor')h=(h*31+ch.charCodeAt(0))>>>0;
     const suit=who?.kind==='pip'?'#7a2e35':outfits[h%outfits.length],shell=who?.kind==='pip'?'#f3ead8':['#f1e2c6','#ecd3b0','#e2c39c','#f4e8d2'][h%4];
-    const rings=[];
-    for(let i=0;i<=14;i++) {
-      const t=i/14*Math.PI,y=.054*(1-Math.cos(t));
-      if(rings.length && rings.at(-1)[1]<.047 && y>=.047){rings.push([eggRadius(Math.acos(1-.047/.054)),.047,suit],[eggRadius(Math.acos(1-.047/.054)),.047,shell]);}
-      rings.push([eggRadius(t),y,y<.047?suit:shell]);
-    }
+    const rings=eggRings(suit,shell);
     if(hero.suit){hero.body.remove(hero.suit);hero.suit.geometry.dispose();}
     hero.suit=new T.Mesh(lathe(rings,20),hero.body.children[0].material);hero.suit.position.y=.008;hero.body.add(hero.suit);
     atlas.cellUV(hero.tag.geometry,atlas.index(who));
   }
   const pipGate=people.find(o=>o.kind==='pip')?.g||[-.28,5.05];
   const spots=[{id:'gate',x:pipGate[0],z:pipGate[1],r:.2},{id:'guard',x:.62,z:-3.1,r:.5},{id:'seat',x:.45,z:3.5,r:.3},{id:'water',x:7.3,z:2.2,r:1.35}];
+
+  // ---- Townsfolk: neighbours out and about, one for every four residents, so the taman fills as it grows.
+  // They find their own way over a coarse copy of the walking grid, keeping to the roads and stall aisles
+  // where they can, and go between homes, stalls, shops and the playground.
+  const STEP=.08, WIDE=Math.ceil(HALF*2/STEP), folk=[], haunts={home:[],stall:[],hang:[],play:[]};
+  const lanes=[[-.3,-2.95,.3,6.3],[-6.2,4.15,6.2,4.7],[-6.2,-2.9,6.2,-2.45],[-5.05,-2.45,-4.65,4.15],[-2.3,-2.45,-1.9,4.15],[.3,3.1,4.5,3.35],
+    [-6.2,-3.65,6.2,-3.25],[-.3,-3.25,.3,-2.9],[6,3.6,9,4.15],[4.6,2.79,5.9,2.97],[5.8,3.4,6.2,4.2]];   // x0, z0, x1, z1
+  let fare=null, reach=null, came=null, seen=null, pass=0;
+  function buildFare() {                         // 0 = no way through, 1 = road, 5 = grass
+    if(!grid)buildGrid();
+    fare=new Uint8Array(WIDE*WIDE);reach=new Float32Array(WIDE*WIDE);came=new Int32Array(WIDE*WIDE);seen=new Uint32Array(WIDE*WIDE);
+    for(let j=0;j<WIDE;j++)for(let i=0;i<WIDE;i++) {
+      const x=(i+.5)*STEP-HALF,z=(j+.5)*STEP-HALF;
+      if(x<-6.3 || x>9 || z<-5.9 || z>6.4)continue;
+      if(blocked(x,z) || blocked(x+.04,z+.04) || blocked(x-.04,z+.04) || blocked(x+.04,z-.04) || blocked(x-.04,z-.04))continue;
+      if(((x-7.3)/.98)**2+((z-2.2)/.68)**2<1)continue;                     // the pond
+      fare[j*WIDE+i]=lanes.some(r=>x>=r[0] && x<=r[2] && z>=r[1] && z<=r[3])?1:5;
+    }
+  }
+  const cellAt=(x,z)=>Math.floor((z+HALF)/STEP)*WIDE+Math.floor((x+HALF)/STEP);
+  const spotOf=cell=>[(cell%WIDE+.5)*STEP-HALF,(Math.floor(cell/WIDE)+.5)*STEP-HALF];
+  function nearestClear(x,z) {
+    const c=cellAt(x,z),ci=c%WIDE,cj=Math.floor(c/WIDE);
+    for(let r=0;r<14;r++)for(let dj=-r;dj<=r;dj++)for(let di=-r;di<=r;di++) {
+      if(Math.max(Math.abs(di),Math.abs(dj))!==r)continue;
+      const i=ci+di,j=cj+dj;
+      if(i>=0 && j>=0 && i<WIDE && j<WIDE && fare[j*WIDE+i])return j*WIDE+i;
+    }
+    return -1;
+  }
+  function route(from,to,seed) {                 // A* between two cells; each neighbour prefers slightly different ground
+    if(from<0 || to<0)return null;
+    pass++;
+    const heap=[],ti=to%WIDE,tj=Math.floor(to/WIDE);
+    const push=(f,c)=>{let n=heap.length;heap.push([f,c]);while(n){const up=(n-1)>>1;if(heap[up][0]<=f)break;[heap[up],heap[n]]=[heap[n],heap[up]];n=up;}};
+    const pop=()=>{
+      const top=heap[0],last=heap.pop();
+      if(heap.length){heap[0]=last;let n=0;for(;;){let m=n;const l=2*n+1,r=l+1;if(l<heap.length && heap[l][0]<heap[m][0])m=l;if(r<heap.length && heap[r][0]<heap[m][0])m=r;if(m===n)break;[heap[m],heap[n]]=[heap[n],heap[m]];n=m;}}
+      return top;
+    };
+    seen[from]=pass;reach[from]=0;came[from]=-1;push(0,from);
+    while(heap.length) {
+      const [,c]=pop();
+      if(c===to)break;
+      const i=c%WIDE,j=Math.floor(c/WIDE);
+      for(let dj=-1;dj<=1;dj++)for(let di=-1;di<=1;di++) {
+        if(!di && !dj)continue;
+        const ni=i+di,nj=j+dj;if(ni<0 || nj<0 || ni>=WIDE || nj>=WIDE)continue;
+        const n=nj*WIDE+ni;if(!fare[n])continue;
+        if(di && dj && (!fare[j*WIDE+ni] || !fare[nj*WIDE+i]))continue;      // no squeezing past corners
+        const patch=(((ni>>2)*73856093^(nj>>2)*19349663^seed*83492791)>>>0)%1000/1000;
+        const g=reach[c]+fare[n]*(1+patch*.5)*(di && dj?1.414:1);
+        if(seen[n]===pass && reach[n]<=g)continue;
+        seen[n]=pass;reach[n]=g;came[n]=c;
+        const ax=Math.abs(ni-ti),az=Math.abs(nj-tj);
+        push(g+Math.max(ax,az)+.414*Math.min(ax,az),n);
+      }
+    }
+    if(seen[to]!==pass)return null;
+    const path=[];for(let c=to;c!==-1;c=came[c])path.push(spotOf(c));
+    return path.reverse();
+  }
+  const folkPaint=new T.MeshLambertMaterial({vertexColors:true}), suits={};
+  function makeFolk(i,kid) {
+    const suit=outfits[(i*5+3)%outfits.length],shell=['#f1e2c6','#ecd3b0','#e2c39c','#f4e8d2'][(i*7+1)%4],key=suit+shell;
+    const root=new Group(),body=new Group(),feet=[];root.add(body);
+    const dressed=new T.Mesh(suits[key]||(suits[key]=lathe(eggRings(suit,shell),14)),folkPaint);dressed.position.y=.008;body.add(dressed);
+    const eyeR=eggRadius(Math.acos(1-2*.072/.108))+.0005;
+    for(const side of [-1,1]) {
+      const eye=new T.Mesh(suits.eye||(suits.eye=ball(.0058,'#2a2320')),folkPaint);eye.scale.set(1,1.25,.6);
+      eye.position.set(Math.sin(side*.36)*eyeR,.0742,Math.cos(.36)*eyeR-.002);body.add(eye);
+      const foot=new T.Mesh(suits.foot||(suits.foot=ball(.013,'#5b3a26')),folkPaint);foot.scale.set(1,.55,1.5);foot.position.set(side*.019,0,.006);
+      root.add(foot);feet.push(foot);
+    }
+    if(i%4===1){const cap=new T.Mesh(suits['cap'+suit]||(suits['cap'+suit]=ball(.026,suit)),folkPaint);cap.scale.set(1,.5,1);cap.position.y=.104;body.add(cap);}
+    const blob=new T.Mesh(new T.PlaneGeometry(.17,.17),shadow.material);blob.rotation.x=-Math.PI/2;blob.position.y=.004;blob.renderOrder=1;root.add(blob);
+    scene.add(root);
+    return {root,body,feet,kid,size:kid?.66:.9+(i*37%10)/50,speed:kid?.46:.27+(i*53%10)/70,seed:i+1,x:0,z:0,y:0,heading:0,phase:Math.random()*6,
+      state:'stay',t:0,path:null,k:0,spot:null,show:1,fresh:false,hello:0,next:0};
+  }
+  function pickSpot(n) {
+    const roll=Math.random(),kind=n.kid?(roll<.8?'play':'hang'):n.fresh?(roll<.6?'stall':'hang'):roll<.3?'home':roll<.72?'stall':'hang';
+    const free=haunts[kind].filter(s=>!s.taken && s!==n.spot);
+    return free.length?free[Math.floor(Math.random()*free.length)]:null;
+  }
+  function sendOff(n) {
+    const goal=pickSpot(n),path=goal && route(nearestClear(n.x,n.z),goal.cell,n.seed);
+    if(!path){n.state='stay';n.t=1+Math.random()*2;return;}
+    if(n.spot)n.spot.taken=false;
+    goal.taken=true;n.spot=goal;n.fresh=false;
+    path.push([goal.x,goal.z]);n.path=path;n.k=Math.min(1,path.length-1);n.state='walk';
+  }
+  function buildTown() {
+    if(folk.length || !people.length)return;
+    buildFare();
+    const add=(kind,x,z,face,stay)=>{
+      const cell=nearestClear(x,z);if(cell<0)return;
+      if(blocked(x,z) || !fare[cellAt(x,z)])[x,z]=spotOf(cell);
+      haunts[kind].push({kind,x,z,face,stay,cell,taken:false});
+    };
+    for(const o of people)if(o.kind!=='stall')add('home',o.g[0],o.g[1],o.face,[1,1.6]);
+    for(const p of places)if(p.detail)for(const side of [-.08,.08])add('stall',p.point[0]+side,p.point[2]+(p.reverse?-.25:.25),p.reverse?0:Math.PI,[5,12]);
+    for(const x of [1.075,1.775,3.1,3.6,4.05,5.0,5.5])add('hang',x,4.13,Math.PI,[4,10]);                 // the shop fronts
+    for(const [x,z,face] of [[.24,3.62,Math.PI/2],[3.85,3.05,Math.PI],[.18,6,Math.PI],[3,-2.38,0],[6.22,2.3,Math.PI/2],[.5,5.68,Math.PI/2],[-.2,-3.45,0],[2.2,3.02,Math.PI]])add('hang',x,z,face,[6,14]);
+    for(let i=0;i<9;i++)add('play',1.1+(i%3)*.55+Math.random()*.2,2.0+Math.floor(i/3)*.34+Math.random()*.12,Math.random()*6,[2,5]);
+    const count=clamp(Math.round(people.length/4),4,40);
+    for(let i=0;i<count;i++) {
+      const n=makeFolk(i,i%5===2);folk.push(n);
+      // Begin part-way along a first errand, so nobody is caught standing in a row at the start.
+      const first=pickSpot(n);if(!first)continue;
+      n.x=first.x;n.z=first.z;sendOff(n);
+      if(n.path){const at=Math.floor(Math.random()*(n.path.length-1));[n.x,n.z]=n.path[at];n.k=Math.min(at+1,n.path.length-1);}
+      else{n.spot=first;first.taken=true;}
+      n.heading=first.face;
+      if(reducedMotion.matches && n.spot){n.x=n.spot.x;n.z=n.spot.z;n.heading=n.spot.face;n.state='stay';}
+      n.y=groundAt(n.x,n.z);pose(n,0,0);
+    }
+    wake();
+  }
+  function pose(n,swing,now) {
+    n.root.position.set(n.x,n.y,n.z);n.root.rotation.y=n.heading;n.root.scale.setScalar(n.size*n.show);
+    const walk=n.state==='walk' && n.hello<=0;
+    n.body.position.y=walk?Math.abs(Math.cos(n.phase))*.006:n.hello>.45?Math.sin((n.hello-.45)/.45*Math.PI)*.022:0;
+    n.body.rotation.z=walk?swing*.09:Math.sin(now/800+n.seed)*.025;
+    n.feet[0].position.z=.006+swing*.016;n.feet[1].position.z=.006-swing*.016;
+    n.feet[0].position.y=Math.max(0,swing)*.008;n.feet[1].position.y=Math.max(0,-swing)*.008;
+  }
+  const turnTo=(n,want,dt,rate=8)=>{n.heading+=Math.atan2(Math.sin(want-n.heading),Math.cos(want-n.heading))*Math.min(1,dt*rate);};
+  function townStep(dt,now) {
+    if(!folk.length || reducedMotion.matches || document.querySelector('dialog[open]'))return false;
+    const close=!walking && active?.detail ? active : null;       // a stall seen close up keeps its counter clear
+    for(const n of folk) {
+      const goal=n.state==='in'?0:1;
+      if(n.show!==goal)n.show=clamp(n.show+(goal?dt:-dt)*5,0,1);
+      n.root.visible=n.show>0 && !(close && Math.hypot(n.x-close.point[0],n.z-close.point[2])<.6);
+      if(walking && hero && n.state!=='in' && now>n.next && Math.hypot(n.x-hero.x,n.z-hero.z)<.17){n.hello=.9;n.next=now+9000;}
+      if(n.hello>0) {                            // a neighbour stops, turns and gives a little hop when you walk up
+        n.hello-=dt;if(walking && hero)turnTo(n,Math.atan2(hero.x-n.x,hero.z-n.z),dt,12);
+        pose(n,0,now);continue;
+      }
+      let swing=0;
+      if(n.state==='walk') {
+        const last=n.path.length-1;let [tx,tz]=n.path[n.k],far=Math.hypot(tx-n.x,tz-n.z);
+        while(n.k<last && far<.09){n.k++;[tx,tz]=n.path[n.k];far=Math.hypot(tx-n.x,tz-n.z);}
+        const step=Math.min(far,n.speed*dt);
+        if(far>1e-4){n.x+=(tx-n.x)/far*step;n.z+=(tz-n.z)/far*step;turnTo(n,Math.atan2(tx-n.x,tz-n.z),dt,7);}
+        n.y=groundAt(n.x,n.z);n.phase+=dt*(n.kid?19:13);swing=Math.sin(n.phase);
+        if(n.k===last && far<.02){n.state='stay';n.t=n.spot.stay[0]+Math.random()*(n.spot.stay[1]-n.spot.stay[0]);}
+      }
+      else if(n.state==='stay') {
+        if(n.spot)turnTo(n,n.spot.face+(n.spot.kind==='home' && !n.fresh?Math.PI:0),dt,6);
+        n.t-=dt;
+        if(n.t<=0) {
+          if(n.spot?.kind==='home' && !n.fresh){n.state='in';n.t=3+Math.random()*7;}   // home: in through the gate
+          else sendOff(n);
+        }
+      }
+      else {                                     // indoors for a while, then out of somebody's gate
+        n.t-=dt;
+        if(n.t<=0 && n.show===0) {
+          const door=haunts.home.filter(s=>!s.taken);
+          if(door.length) {
+            const out=door[Math.floor(Math.random()*door.length)];
+            if(n.spot)n.spot.taken=false;
+            out.taken=true;n.spot=out;n.x=out.x;n.z=out.z;n.y=groundAt(n.x,n.z);n.heading=out.face;n.fresh=true;n.state='stay';n.t=.9;
+          }
+          else n.t=2;
+        }
+      }
+      pose(n,swing,now);
+    }
+    return true;
+  }
+  setTimeout(buildTown,600);
+  for(const box of document.querySelectorAll('dialog'))box.addEventListener('close',()=>wake());
+  if(params.has('debug'))window.__town={folk:()=>folk.map(n=>[+n.x.toFixed(2),+n.z.toFixed(2),n.state,n.spot?.kind]),haunts,fare:()=>({fare,WIDE,STEP,HALF})};
   // ---- Things that move: the boom gates, the guard, and Pip's roadster.
   const tint=new T.Color(), flat=new T.MeshLambertMaterial({vertexColors:true,side:2});
   function prism(out,profile,x0,x1,hex) {        // a [forward, up] outline pushed across x0..x1
@@ -877,8 +1062,9 @@ async function start() {
     const dt=Math.min(.05,(now-propClock)/1000||0);propClock=now;busy=false;
     for(const gate of gates) {
       const near=walking && hero && Math.hypot(hero.x-gate.x,hero.z-gate.z)<.8;
-      const goal=near?1:0;
-      if(near && gate.open===0){gate.hop=.45;sound.good();}
+      const goal=near || folk.some(n=>n.root.visible && Math.hypot(n.x-gate.x,n.z-gate.z)<.5)?1:0;   // it lifts for the neighbours too
+      if(near && !gate.met){gate.hop=.45;sound.good();}
+      gate.met=near;
       if(gate.open!==goal){gate.open=clamp(gate.open+(goal?dt:-dt)*2.2,0,1);busy=true;}
       const ease=gate.open*gate.open*(3-2*gate.open);
       gate.arm.rotation.z=-ease*1.4;
@@ -914,6 +1100,7 @@ async function start() {
         for(const w of wheels)w.rotation.z=w.userData.side*level*Math.PI/2;   // wheels fold flat in the air
       }
     }
+    folkBusy=townStep(dt,now);
   };
   const clamp=T.MathUtils.clamp;
   const keys={};let stickX=0,stickY=0,clock=0,sprint=false,lean=0;
