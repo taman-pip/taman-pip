@@ -1,5 +1,5 @@
-import { games, openGames } from './games.js?v=202611211626';
-import { sound } from './sound.js?v=202611211626';
+import { games, openGames } from './games.js?v=202611211627';
+import { sound } from './sound.js?v=202611211627';
 const places = [
   { id: 'market', name: 'Pasar Malam', type: 'Night market', tone: '#bb6845', point: [6.58, .14, 3.14], distance: 4.5, angle: .35, tilt: .91 },
   { id: 'gate', name: 'Town entrance', type: 'Welcome arch', tone: '#658052', point: [0, .15, 5.75], distance: 1.95, angle: .20, tilt: 1.22 },

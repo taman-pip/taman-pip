@@ -7,7 +7,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * clamp(t, 0, 1)));
 const rgb = c => 'rgb(' + c.join(',') + ')';
 
-import { sound } from './sound.js?v=202611211626';
+import { sound } from './sound.js?v=202611211627';
 const sfx = sound;
 
 // ---- drawing helpers -------------------------------------------------------
