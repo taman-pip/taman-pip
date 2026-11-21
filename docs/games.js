@@ -7,7 +7,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * clamp(t, 0, 1)));
 const rgb = c => 'rgb(' + c.join(',') + ')';
 
-import { sound } from './sound.js';
+import { sound } from './sound.js?v=202611211548';
 const sfx = sound;
 
 // ---- drawing helpers -------------------------------------------------------
@@ -29,7 +29,30 @@ function floaters(list, g, dt) {
   for (let i = list.length - 1; i >= 0; i--) if (list[i].t > .7) list.splice(i, 1);
 }
 
-// ---- 1. Hus Hus Hus: three folds round the patty, one hus each ---------------
+function wrapPaper(g, cx, cy, half) {            // a sheet of greaseproof paper
+  g.fillStyle = '#00000022'; g.beginPath(); g.roundRect(cx - half + 3, cy - half + 5, half * 2, half * 2, 10); g.fill();
+  g.fillStyle = '#fbf8ef'; g.beginPath(); g.roundRect(cx - half, cy - half, half * 2, half * 2, 10); g.fill();
+  g.strokeStyle = '#e3dccb'; g.lineWidth = 2; g.stroke();
+  g.strokeStyle = '#c8402d2e'; g.lineWidth = 3;
+  for (let i = -half + 18; i < half; i += 26) { g.beginPath(); g.moveTo(cx + i, cy - half + 8); g.lineTo(cx + i, cy + half - 8); g.stroke(); }
+}
+function burgerBun(g, cx, cy, scale) {            // the finished burger, seen from above
+  const r = 58 * scale;
+  g.fillStyle = '#f3d77c'; g.beginPath(); g.ellipse(cx, cy + 5 * scale, r * 1.06, r * .98, 0, 0, 7); g.fill();     // egg peeking out
+  g.fillStyle = '#9c5f25'; g.beginPath(); g.ellipse(cx, cy + 4 * scale, r, r * .92, 0, 0, 7); g.fill();
+  g.fillStyle = '#c98a3e'; g.beginPath(); g.ellipse(cx, cy, r * .97, r * .88, 0, 0, 7); g.fill();
+  g.fillStyle = '#f6e7c3';
+  for (const [x, y] of [[-26, -16], [-5, -27], [19, -18], [-16, 7], [9, 2], [29, 9], [-2, 23]]) { g.beginPath(); g.ellipse(cx + x * scale, cy + y * scale, 4 * scale, 2.4 * scale, x, 0, 7); g.fill(); }
+}
+function paperFlap(g, cx, cy, half, [vx, vy], amount) {   // one side of the paper folded over the burger
+  const reach = amount * half * .62, start = half * .40;
+  g.fillStyle = '#f6f1e4'; g.beginPath();
+  if (vx) g.roundRect(vx > 0 ? cx + half - start - reach : cx - half, cy - half + 5, start + reach, half * 2 - 10, 9);
+  else g.roundRect(cx - half + 5, vy > 0 ? cy + half - start - reach : cy - half, half * 2 - 10, start + reach, 9);
+  g.fill(); g.strokeStyle = '#d6cdb8'; g.lineWidth = 2; g.stroke();
+}
+
+// ---- 1. Hus Hus Hus: wrap the finished burger in paper, three folds, one hus each ----
 function huss(api) {
   const sides = ['top', 'right', 'bottom', 'left'], vectors = { top: [0, -1], right: [1, 0], bottom: [0, 1], left: [-1, 0] };
   let order, step, fold, shake, leave, pops = [], pulse = 0;
@@ -52,22 +75,12 @@ function huss(api) {
       if (leave) { leave += dt; if (leave > .42) next(); }
     },
     draw(g, dt) {
-      griddle(g);
+      g.fillStyle = '#e8dcc4'; g.fillRect(0, 0, W, H);                 // the stall counter
+      g.fillStyle = '#8c5a3d'; g.beginPath(); g.roundRect(14, 26, W - 28, H - 52, 22); g.fill();
+      g.fillStyle = '#9b6646'; g.beginPath(); g.roundRect(22, 34, W - 44, H - 68, 16); g.fill();
       const cx = W / 2 + (shake ? Math.sin(shake * 60) * 5 : 0) + (leave ? leave * leave * 1500 : 0), cy = 200, half = 104;
-      g.fillStyle = '#f6dc8a'; g.beginPath(); g.roundRect(cx - half, cy - half, half * 2, half * 2, 26); g.fill();
-      g.fillStyle = '#fbefc4'; g.beginPath(); g.roundRect(cx - half + 10, cy - half + 10, half * 2 - 20, half * 2 - 20, 20); g.fill();
-      g.fillStyle = '#5f3a22'; g.beginPath(); g.arc(cx, cy, 50, 0, 7); g.fill();
-      g.fillStyle = '#7a4a2a'; g.beginPath(); g.arc(cx, cy - 3, 47, 0, 7); g.fill();
-      g.fillStyle = '#b5382a'; g.beginPath(); g.ellipse(cx - 8, cy - 6, 22, 9, .4, 0, 7); g.fill();
-      g.fillStyle = '#e9c545'; g.beginPath(); g.ellipse(cx + 12, cy + 8, 16, 6, -.5, 0, 7); g.fill();
-      for (const s of sides) {                       // folded flaps cover the patty from their own edge
-        if (!fold[s]) continue;
-        const [vx, vy] = vectors[s], reach = fold[s] * 62;
-        g.fillStyle = '#f3d77c'; g.beginPath();
-        if (vx) g.roundRect(vx > 0 ? cx + half - 44 - reach : cx - half, cy - half + 8, 44 + reach, half * 2 - 16, 18);
-        else g.roundRect(cx - half + 8, vy > 0 ? cy + half - 44 - reach : cy - half, half * 2 - 16, 44 + reach, 18);
-        g.fill(); g.strokeStyle = '#d9b655'; g.lineWidth = 2; g.stroke();
-      }
+      wrapPaper(g, cx, cy, half); burgerBun(g, cx, cy, 1);
+      for (const s of sides) if (fold[s]) paperFlap(g, cx, cy, half, vectors[s], fold[s]);
       if (!leave) {                                  // arrow on the flap to fold next
         const [vx, vy] = vectors[order[step]], bob = Math.sin(pulse * 9) * 6, ax = cx + vx * (half + 26 - bob), ay = cy + vy * (half + 26 - bob);
         g.save(); g.translate(ax, ay); g.rotate(Math.atan2(-vy, -vx));
@@ -80,8 +93,8 @@ function huss(api) {
 }
 
 // ---- 2. Burger Special: the pasar malam way, one order at a time -------------
-// Patty on, flip it, crack the egg and spread it thin, cheese if the order wants it, fold the egg
-// round the patty, the sauces on the ticket, then into the bun.
+// Patty on, flip it, crack the egg and spread it thin, cheese if the order wants it (the egg tucks itself
+// round the patty), the sauces on the ticket, into the bun, and last of all the paper: hus, hus, hus.
 function special(api) {
   const cx = W / 2, cy = 166, pops = [], sides = ['top', 'right', 'bottom', 'left'], vectors = { top: [0, -1], right: [1, 0], bottom: [0, 1], left: [-1, 0] };
   const tray = [
@@ -91,23 +104,23 @@ function special(api) {
     { id: 'pepper', name: 'Black pepper', x: 239, y: 332, w: 106, h: 48 }
   ];
   const raw = [222, 140, 126], done = [124, 76, 42], burnt = [34, 28, 26];
-  let order, stage, t, ready, burn, spin, egg, cheese, folds, foldOrder, sauced, leave, shake = 0, pulse = 0, press = null;
+  let order, stage, t, ready, burn, spin, egg, cheese, folds, foldOrder, sauced, leave, tuck, bunOn, shake = 0, pulse = 0, press = null;
   function next() {
     const sauces = ['chili', 'mayo', 'pepper'].filter(() => Math.random() < .6);
     order = { cheese: Math.random() < .6, sauces: sauces.length ? sauces : ['chili'] };
-    stage = 'patty'; t = 0; spin = 0; egg = 0; cheese = false; folds = { top: 0, right: 0, bottom: 0, left: 0 }; foldOrder = []; sauced = []; leave = 0;
+    stage = 'patty'; t = 0; spin = 0; egg = 0; cheese = false; folds = { top: 0, right: 0, bottom: 0, left: 0 }; foldOrder = []; sauced = []; leave = 0; tuck = 0; bunOn = false;
   }
   next();
   const wrong = text => { shake = .3; api.penalty(1); sfx.bad(); pops.push({ text: text || '-1s', x: cx, y: 96, t: 0, color: '#ffb4a2', size: 16 }); };
   const hint = () => ({ patty: 'Put a patty on', cook: t < ready ? 'Wait for the green ring…' : 'Flip it now', egg: 'Crack an egg', cheese: 'Add the cheese',
-    fold: 'Hus, hus, hus: tap the arrow', sauce: 'Sauce: ' + order.sauces.filter(o => !sauced.includes(o)).join(', '), bun: 'Into the bun' }[stage]);
+    wrap: 'Wrap it: hus, hus, hus', sauce: 'Sauce: ' + order.sauces.filter(o => !sauced.includes(o)).join(', '), bun: 'Into the bun' }[stage]);
   function useTray(id) {
     press = { id, t: .18 };
     if (stage === 'patty' && id === 'patty') { stage = 'cook'; t = 0; ready = rand(1.3, 1.9); burn = ready + 1.7; sfx.sizzle(); }
-    else if (stage === 'egg' && id === 'egg') { egg = .01; sfx.sizzle(); stage = order.cheese ? 'cheese' : 'fold'; if (stage === 'fold') foldOrder = [...sides].sort(() => Math.random() - .5).slice(0, 3); }
-    else if (stage === 'cheese' && id === 'cheese') { cheese = true; sfx.good(); stage = 'fold'; foldOrder = [...sides].sort(() => Math.random() - .5).slice(0, 3); }
+    else if (stage === 'egg' && id === 'egg') { egg = .01; sfx.sizzle(); stage = order.cheese ? 'cheese' : 'sauce'; if (stage === 'sauce') tuck = .01; }
+    else if (stage === 'cheese' && id === 'cheese') { cheese = true; sfx.good(); stage = 'sauce'; tuck = .01; }
     else if (stage === 'sauce' && order.sauces.includes(id) && !sauced.includes(id)) { sauced.push(id); sfx.good(); if (sauced.length === order.sauces.length) stage = 'bun'; }
-    else if (stage === 'bun' && id === 'bun') { api.score(1); sfx.great(); leave = .001; pops.push({ text: 'Siap! +1', x: cx, y: 96, t: 0 }); }
+    else if (stage === 'bun' && id === 'bun') { bunOn = true; sfx.good(); stage = 'wrap'; foldOrder = [...sides].sort(() => Math.random() - .5).slice(0, 3); }
     else wrong(stage === 'sauce' && ['chili', 'mayo', 'pepper'].includes(id) ? 'not on the order' : '-1s');
   }
   function useGriddle(x, y) {
@@ -115,10 +128,10 @@ function special(api) {
       if (Math.hypot(x - cx, y - cy) > 60) return;
       if (t < ready) { pops.push({ text: 'not yet', x: cx, y: cy - 56, t: 0, size: 15 }); return; }
       spin = 1; sfx.sizzle(); stage = 'egg';
-    } else if (stage === 'fold') {
+    } else if (stage === 'wrap') {
       const dx = x - cx, dy = y - cy, side = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'bottom' : 'top');
       const want = foldOrder.find(o => !folds[o]);
-      if (side === want) { sfx.hus(foldOrder.indexOf(side)); folds[side] = .01; pops.push({ text: 'hus', x: cx + vectors[side][0] * 70, y: cy + vectors[side][1] * 70, t: 0 }); if (foldOrder.every(o => folds[o])) stage = 'sauce'; }
+      if (side === want) { sfx.hus(foldOrder.indexOf(side)); folds[side] = .01; pops.push({ text: 'hus', x: cx + vectors[side][0] * 70, y: cy + vectors[side][1] * 70, t: 0 }); if (foldOrder.every(o => folds[o])) { api.score(1); sfx.great(); leave = .001; pops.push({ text: 'Siap! +1', x: cx, y: 96, t: 0 }); } }
       else wrong();
     }
   }
@@ -133,9 +146,10 @@ function special(api) {
       pulse += dt; shake = Math.max(0, shake - dt); spin = Math.max(0, spin - dt * 4);
       if (press) { press.t -= dt; if (press.t <= 0) press = null; }
       if (egg) egg = Math.min(1, egg + dt * 4);
+      if (tuck) tuck = Math.min(1, tuck + dt * 5);
       for (const o of sides) if (folds[o]) folds[o] = Math.min(1, folds[o] + dt * 9);
       if (stage === 'cook') { t += dt; if (t >= burn) { sfx.bad(); api.penalty(2); pops.push({ text: 'burnt! -2s', x: cx, y: 96, t: 0, color: '#ffb4a2', size: 16 }); stage = 'patty'; } }
-      if (leave) { leave += dt; if (leave > .5) next(); }
+      if (leave) { leave += dt; if (leave > .55) next(); }
     },
     draw(g, dt) {
       g.fillStyle = '#e8dcc4'; g.fillRect(0, 0, W, H);
@@ -148,12 +162,13 @@ function special(api) {
       g.fillStyle = '#2f3537'; g.beginPath(); g.roundRect(14, 58, W - 28, 212, 20); g.fill();
       g.fillStyle = '#3d4447'; g.beginPath(); g.roundRect(22, 66, W - 44, 196, 14); g.fill();
       const ox = cx + (shake ? Math.sin(shake * 60) * 5 : 0) + (leave ? leave * leave * 1300 : 0);
-      if (egg) {                                     // the egg spread thin
+      if (bunOn) wrapPaper(g, ox, cy, 84);
+      if (egg && !bunOn) {                           // the egg spread thin
         const half = 30 + egg * 44;
         g.fillStyle = '#f6dc8a'; g.beginPath(); g.roundRect(ox - half, cy - half, half * 2, half * 2, 22); g.fill();
         g.fillStyle = '#fbefc4'; g.beginPath(); g.roundRect(ox - half + 8, cy - half + 8, half * 2 - 16, half * 2 - 16, 16); g.fill();
       }
-      if (stage !== 'patty') {                       // the patty, split open and seasoned
+      if (stage !== 'patty' && !bunOn) {             // the patty, split open and seasoned
         const colour = stage === 'cook' ? (t < ready ? mix(raw, done, t / ready) : mix(done, burnt, (t - ready) / (burn - ready) * .9)) : done;
         g.save(); g.translate(ox, cy - Math.sin(spin * Math.PI) * 24); g.scale(1, 1 - Math.sin(spin * Math.PI) * .85);
         g.fillStyle = rgb(mix(colour, [0, 0, 0], .28)); g.beginPath(); g.arc(0, 4, 37, 0, 7); g.fill();
@@ -167,26 +182,21 @@ function special(api) {
           g.beginPath(); g.arc(ox, cy, 46, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left); g.stroke(); g.lineCap = 'butt';
         }
       }
-      if (cheese) { g.save(); g.translate(ox, cy); g.rotate(.5); g.fillStyle = '#f2b632'; g.beginPath(); g.roundRect(-25, -25, 50, 50, 5); g.fill(); g.fillStyle = '#f7cf62'; g.beginPath(); g.roundRect(-20, -20, 40, 40, 4); g.fill(); g.restore(); }
-      for (const o of sides) {                       // the folded flaps
-        if (!folds[o]) continue;
-        const [vx, vy] = vectors[o], half = 74, reach = folds[o] * 44;
+      if (cheese && !bunOn) { g.save(); g.translate(ox, cy); g.rotate(.5); g.fillStyle = '#f2b632'; g.beginPath(); g.roundRect(-25, -25, 50, 50, 5); g.fill(); g.fillStyle = '#f7cf62'; g.beginPath(); g.roundRect(-20, -20, 40, 40, 4); g.fill(); g.restore(); }
+      if (tuck && !bunOn) for (const o of sides) {   // the egg tucks itself round the patty
+        const [vx, vy] = vectors[o], half = 74, reach = tuck * 44;
         g.fillStyle = '#f3d77c'; g.beginPath();
         if (vx) g.roundRect(vx > 0 ? ox + half - 32 - reach : ox - half, cy - half + 6, 32 + reach, half * 2 - 12, 14);
         else g.roundRect(ox - half + 6, vy > 0 ? cy + half - 32 - reach : cy - half, half * 2 - 12, 32 + reach, 14);
         g.fill(); g.strokeStyle = '#d9b655'; g.lineWidth = 2; g.stroke();
       }
       const squiggle = (colour, shift) => { g.strokeStyle = colour; g.lineWidth = 6; g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath(); for (let i = 0; i <= 8; i++) { const x = ox - 48 + i * 12, y = cy + shift + (i % 2 ? 9 : -9); i ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); g.lineCap = 'butt'; };
-      if (sauced.includes('chili')) squiggle('#c8321f', -22);
-      if (sauced.includes('mayo')) squiggle('#fff7df', 4);
-      if (sauced.includes('pepper')) { g.fillStyle = '#2b2622'; for (let i = 0; i < 16; i++) { g.beginPath(); g.arc(ox - 46 + (i * 37 % 92), cy + 22 + (i * 13 % 24), 2.4, 0, 7); g.fill(); } }
-      if (leave) {                                   // top bun on, and off it goes
-        g.fillStyle = '#9c5f25'; g.beginPath(); g.ellipse(ox, cy + 6, 70, 58, 0, 0, 7); g.fill();
-        g.fillStyle = '#c98a3e'; g.beginPath(); g.ellipse(ox, cy, 68, 54, 0, 0, 7); g.fill();
-        g.fillStyle = '#f6e7c3'; for (const [x, y] of [[-30, -18], [-6, -30], [22, -20], [-18, 8], [10, 2], [34, 10], [-2, 26]]) { g.beginPath(); g.ellipse(ox + x, cy + y, 4, 2.4, x, 0, 7); g.fill(); }
-      }
-      if (stage === 'fold' && !leave) {              // arrow on the flap to fold next
-        const want = foldOrder.find(o => !folds[o]), [vx, vy] = vectors[want], bob = Math.sin(pulse * 9) * 5, ax = ox + vx * (96 - bob), ay = cy + vy * (90 - bob);
+      if (!bunOn && sauced.includes('chili')) squiggle('#c8321f', -22);
+      if (!bunOn && sauced.includes('mayo')) squiggle('#fff7df', 4);
+      if (!bunOn && sauced.includes('pepper')) { g.fillStyle = '#2b2622'; for (let i = 0; i < 16; i++) { g.beginPath(); g.arc(ox - 46 + (i * 37 % 92), cy + 22 + (i * 13 % 24), 2.4, 0, 7); g.fill(); } }
+      if (bunOn) { burgerBun(g, ox, cy, .86); for (const o of sides) if (folds[o]) paperFlap(g, ox, cy, 84, vectors[o], folds[o]); }   // in the bun, then the paper
+      if (stage === 'wrap' && !leave) {              // arrow on the side of the paper to fold next
+        const want = foldOrder.find(o => !folds[o]), [vx, vy] = vectors[want], bob = Math.sin(pulse * 9) * 5, ax = ox + vx * (104 - bob), ay = cy + vy * (98 - bob);
         g.save(); g.translate(ax, ay); g.rotate(Math.atan2(-vy, -vx));
         g.fillStyle = '#fbf3e2'; g.strokeStyle = '#2c533d'; g.lineWidth = 4; g.beginPath();
         g.moveTo(15, 0); g.lineTo(-8, -14); g.lineTo(-8, -6); g.lineTo(-19, -6); g.lineTo(-19, 6); g.lineTo(-8, 6); g.lineTo(-8, 14); g.closePath(); g.stroke(); g.fill(); g.restore();
@@ -319,9 +329,9 @@ function gepuk(api) {
 
 export const games = [
   { id: 'hus', name: 'Hus Hus Hus', stall: 'Burger stall', tone: '#b0503f', make: huss,
-    how: 'Fold the egg round the patty: three folds a burger, hus, hus, hus. Tap the side the arrow points at. A wrong fold costs a second.' },
+    how: 'Wrap each burger in paper: three folds, hus, hus, hus. Tap the side the arrow points at. A wrong fold costs a second.' },
   { id: 'special', name: 'Burger Special', stall: 'Burger stall', tone: '#7a4a2a', make: special,
-    how: 'Make each order the pasar malam way: patty on, flip it on the green ring, crack the egg, cheese if they asked, fold the egg round it (hus, hus, hus), the sauces on the ticket, then the bun. Mistakes cost a second.' },
+    how: 'Make each order the pasar malam way: patty on, flip it on the green ring, crack the egg, cheese if they asked, the sauces on the ticket, the bun, then wrap it in paper: hus, hus, hus. Mistakes cost a second.' },
   { id: 'wok', name: 'Wok Hei', stall: 'Fried rice stall', tone: '#c58a2b', make: wok,
     how: 'Tap anywhere as the ring meets the rim of the wok to toss the nasi goreng. Dead on scores double. Three misses and the rice is on the floor.' },
   { id: 'gepuk', name: 'Gepuk!', stall: 'Ayam Gepuk Pipchun', tone: '#b5382a', make: gepuk,

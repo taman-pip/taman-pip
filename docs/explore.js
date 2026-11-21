@@ -1,5 +1,5 @@
-import { games, openGames } from './games.js';
-import { sound } from './sound.js';
+import { games, openGames } from './games.js?v=202611211548';
+import { sound } from './sound.js?v=202611211548';
 const places = [
   { id: 'market', name: 'Pasar Malam', type: 'Night market', tone: '#bb6845', point: [6.58, .14, 3.14], distance: 4.5, angle: .35, tilt: .91 },
   { id: 'gate', name: 'Town entrance', type: 'Welcome arch', tone: '#658052', point: [0, .15, 5.75], distance: 1.95, angle: .20, tilt: 1.22 },
@@ -414,18 +414,31 @@ async function start() {
     const c=document.createElement('canvas');c.width=w;c.height=h;paint(c.getContext('2d'));
     const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;return t;
   }
-  const moonFace=open=>picture(256,256,g=>{
-    g.fillStyle='#f4efdc';g.beginPath();g.arc(128,128,118,0,7);g.fill();
-    g.fillStyle='#e2dcc4';for(const [x,y,r] of [[80,84,20],[168,70,13],[186,150,24],[92,176,15],[140,206,10]]){g.beginPath();g.arc(x,y,r,0,7);g.fill();}
-    if(!open)return;
-    g.fillStyle='#fbf8ec';g.beginPath();g.ellipse(128,128,84,54,0,0,7);g.fill();
-    g.fillStyle='#c98a2b';g.beginPath();g.arc(128,128,46,0,7);g.fill();
-    g.fillStyle='#1d1a16';g.beginPath();g.ellipse(128,128,13,40,0,0,7);g.fill();
-    g.fillStyle='#fff';g.beginPath();g.arc(112,110,8,0,7);g.fill();
-    g.strokeStyle='#8a8266';g.lineWidth=7;g.beginPath();g.ellipse(128,128,84,54,0,0,7);g.stroke();
-  });
-  const moonLooks=[new T.MeshBasicMaterial({map:moonFace(false),transparent:true,opacity:.9}),new T.MeshBasicMaterial({map:moonFace(true),transparent:true})];
-  const moon=new T.Mesh(new T.PlaneGeometry(2.4,2.4),moonLooks[0]);moon.position.set(-3,2.3,-15);scene.add(moon);
+  // The moon is the film's own moon map and iris (assets/moon.webp, moon-iris.webp). As in episode 5 the
+  // whole moon is the eyeball: a seam runs across it, the lids part, and a pale iris with a small pupil looks out.
+  const moonArt=document.createElement('canvas');moonArt.width=moonArt.height=384;
+  const moonPen=moonArt.getContext('2d'),moonSkin=new T.CanvasTexture(moonArt);moonSkin.colorSpace=T.SRGBColorSpace;
+  const moonDisc=new Image(),moonIris=new Image();moonDisc.src='./assets/moon.webp';moonIris.src='./assets/moon-iris.webp';
+  function paintMoon(open) {
+    const g=moonPen,c=192,R=184;
+    g.clearRect(0,0,384,384);g.drawImage(moonDisc,0,0,384,384);
+    const gap=open*R*.985;                       // fully open, the lids are gone and the whole moon is the eye
+    if(gap>1) {
+      g.save();g.beginPath();g.ellipse(c,c,R,gap,0,0,Math.PI*2);g.clip();
+      if(moonIris.complete)g.drawImage(moonIris,c-R*.44,c-R*.44,R*.88,R*.88);
+      g.fillStyle='#06080c';g.beginPath();g.arc(c,c,R*.07,0,7);g.fill();    // a small pupil, as in the film
+      g.restore();
+      // the lids are the same moon, a shade darker, closing over it from above and below
+      g.save();g.beginPath();g.arc(c,c,R,0,Math.PI*2);g.ellipse(c,c,R,gap,0,0,Math.PI*2);g.clip('evenodd');
+      g.fillStyle='rgba(96,88,66,.2)';g.fillRect(0,0,384,384);g.restore();
+      if(open<.98){g.strokeStyle='#8f8a78';g.lineWidth=2.5;g.beginPath();g.ellipse(c,c,R,gap,0,0,Math.PI*2);g.stroke();}
+    } else { g.strokeStyle='#8f8a7899';g.lineWidth=2;g.beginPath();g.moveTo(c-R,c);g.lineTo(c+R,c);g.stroke(); }   // the closed seam
+    moonSkin.needsUpdate=true;
+  }
+  const moon=new T.Mesh(new T.PlaneGeometry(2.4,2.4),new T.MeshBasicMaterial({map:moonSkin,transparent:true}));
+  moon.position.set(-3,2.3,-15);moon.visible=false;scene.add(moon);
+  moonDisc.onload=()=>{paintMoon(0);moon.visible=true;wake();};
+  let moonLook=null;                               // {start}: lids open, hold, close
   const car=new T.Mesh(new T.PlaneGeometry(2.2,.88),new T.MeshBasicMaterial({transparent:true,map:picture(400,160,g=>{
     g.fillStyle='#ffffffb0';for(let i=0;i<7;i++){g.beginPath();g.arc(20+i*22,96-(i%2)*8,10+i*2.4,0,7);g.fill();}   // vapour
     g.fillStyle='#b3261e';g.beginPath();g.moveTo(170,104);g.quadraticCurveTo(176,78,214,74);g.lineTo(250,52);g.lineTo(304,52);g.quadraticCurveTo(330,72,372,82);g.quadraticCurveTo(392,88,388,108);g.lineTo(170,108);g.closePath();g.fill();
@@ -435,7 +448,7 @@ async function start() {
     g.fillStyle='#ffd97a';g.beginPath();g.ellipse(384,94,5,7,0,0,7);g.fill();
   })}));
   car.visible=false;scene.add(car);
-  let trip=null,moonOpen=0;
+  let trip=null;
   const from=new T.Vector3(),to=new T.Vector3();
   function fly_over() {
     if(document.hidden || trip)return;
@@ -453,7 +466,7 @@ async function start() {
       const reach=wide*rect.height/(2*Math.tan(camera.fov*Math.PI/360)*camera.position.distanceTo(mesh.position))/2;
       if(Math.hypot((point.x+1)*rect.width/2-px,(1-point.y)*rect.height/2-py)>Math.max(26,reach))continue;
       press?.();
-      if(id==='moon'){moon.material=moonLooks[1];moonOpen=performance.now();setTimeout(()=>{moon.material=moonLooks[0];wake();},4200);wake();}
+      if(id==='moon'){moonLook={start:performance.now()};wake();}
       found(id);return true;
     }
     return false;
@@ -517,6 +530,11 @@ async function start() {
       hero.tag.scale.set(s,s,1);hero.tag.position.copy(hero.root.position);hero.tag.position.y+=.135+s*.15;
     }
     moon.quaternion.copy(camera.quaternion);
+    if(moonLook) {
+      const t=(now-moonLook.start)/1000,lids=t<.5?t/.5:t<4?1:Math.max(0,1-(t-4)/.45);
+      paintMoon(lids*lids*(3-2*lids));
+      if(t>4.45)moonLook=null;
+    }
     if(trip) {
       const t=(now-trip.start)/trip.length;
       if(t>=1){trip=null;car.visible=false;}
@@ -568,7 +586,7 @@ async function start() {
         used.push(r);
       }
     }
-    if(flight || trip || busy || (walking && moving))wake();
+    if(flight || trip || busy || moonLook || (walking && moving))wake();
   }
   wake=()=>{if(!frame)frame=requestAnimationFrame(render);};
   controls.addEventListener('change',wake);
