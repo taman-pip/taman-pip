@@ -1,5 +1,5 @@
-import { games, openGames } from './games.js?v=202611211632';
-import { sound } from './sound.js?v=202611211632';
+import { games, openGames } from './games.js?v=202611211636';
+import { sound } from './sound.js?v=202611211636';
 const places = [
   { id: 'market', name: 'Pasar Malam', type: 'Night market', tone: '#bb6845', point: [6.58, .14, 3.14], distance: 4.5, angle: .35, tilt: .91 },
   { id: 'gate', name: 'Town entrance', type: 'Welcome arch', tone: '#658052', point: [0, .15, 5.75], distance: 1.95, angle: .20, tilt: 1.22 },
@@ -605,8 +605,11 @@ async function start() {
       }
     }
     for (const pin of order) {
-      point.copy(pin.anchor).project(camera);
-      const x=(point.x+1)*w/2,y=(1-point.y)*h/2;
+      // A shop's pin stands on top of its owner's name tag when that is showing, never across it.
+      const over=pin.tag||(pin.tag=tags.find(t=>t.shop===pin.p));
+      if(over && over.mesh.visible)point.set(0,over.mesh.scale.x*.15,0).applyQuaternion(camera.quaternion).add(over.mesh.position).project(camera);
+      else point.copy(pin.anchor).project(camera);
+      const x=(point.x+1)*w/2,y=(1-point.y)*h/2+(over && over.mesh.visible?6:0);
       const width=pin.p.name.length*6.8+31;
       const sampled=pin.p===active || ((!pin.p.detail || dist<3) && ((dist>9 && !person) || pin.anchor.distanceTo(controls.target)<dist*.7));
       const r={l:x-width/2,r:x+width/2,t:y-45,b:y};
