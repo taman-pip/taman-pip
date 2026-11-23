@@ -148,7 +148,7 @@ let active = null;
 let showPerson;
 let walking = false;
 let atMarket = false;   // the walker is standing among the stalls
-let startWalk;
+let startWalk, refreshHome;
 let todo = [];        // things to do around the taman, filled in once the town is built
 let stopWalk;
 let navigate;
@@ -257,6 +257,7 @@ function card() {
   $('card-share').querySelector('span').textContent = 'Share';
 }
 function identity() {
+  refreshHome?.();
   $('me').hidden = !me;
   document.body.classList.toggle('has-me', !!me);
   if (me) $('me-name').textContent = '@' + me.u;
@@ -411,7 +412,7 @@ const roster = fetch('./assets/residents.json').then(r => r.json()).then(data =>
 }).catch(error => { console.error('Residents:', error); return []; });
 
 async function start() {
-  const T = await import('./assets/engine.js');
+  const T = await import('./assets/engine.js?v=porch-light');
   const renderer = new T.WebGLRenderer({alpha:true, antialias:true, powerPreference:'low-power'});
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, mobile.matches ? 1.5 : 1.8));
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
@@ -723,9 +724,10 @@ async function start() {
   }
   new ResizeObserver(resize).observe(view);resize();
   const loader=new T.GLTFLoader().setMeshoptDecoder(T.MeshoptDecoder);
-  asset=await loader.loadAsync('./assets/town.glb?v=ep3-aisle',e=>{
+  asset=await loader.loadAsync('./assets/town.glb?v=playground-pools',e=>{
     if(e.lengthComputable && e.total)$('map-status').textContent='Loading the town\u2026 '+Math.round(e.loaded/e.total*100)+'%';
   });
+  await roster;
   asset.scene.traverse(o=>{
     if(!o.isMesh)return;
     o.castShadow=true;o.receiveShadow=true;
@@ -1169,28 +1171,51 @@ async function start() {
     mesh.position.set(x,y,z);mesh.renderOrder=3;scene.add(mesh);beacons.push({mesh,y,k:beacons.length});
     tappable.push([mesh,'do',.3,press]);
   }
-  const pools=people.filter(o=>o.kind==='mansion').map(o=>({o,cx:o.g[0]-(Math.sign(o.p[0]-o.g[0])||1)*.33,gate:o.p[0]}));
-  const poolAt=(x,z)=>z<-4.09 && z>-4.59 ? pools.find(q=>Math.abs(x-q.cx)<.10) : null;
-  const deckAt=(x,z)=>z<-4.02 && z>-4.66 ? pools.find(q=>Math.abs(x-q.cx)<.17) : null;
-  const SWING=[2.15,2.35], SLIDE=[1.35,2.36];
-  for(const q of pools)beacon(q.cx,.30,-4.34,()=>startWalk({x:q.gate,z:-3.62,face:Math.PI}));
+  // World-space edges of the exported water and coping. M04 has an extended pool.
+  const pools=people.filter(o=>o.kind==='mansion').map(o=>{
+    const large=o.lot==='M04';
+    return {o,gate:o.p[0],cx:large?-1.969:o.g[0]-Math.sign(o.p[0]-o.g[0])*.33,
+      front:large?-3.974:-4.08,back:large?-5.206:-4.60,half:large?.164:.11,
+      rim:large?.037:.04,endRim:large?.054:.05,deckY:large?.111:.097,waterY:large?.1145:.10};
+  });
+  const poolAt=(x,z)=>pools.find(q=>z<q.front && z>q.back && Math.abs(x-q.cx)<q.half);
+  const deckAt=(x,z)=>pools.find(q=>z<q.front+q.endRim && z>q.back-q.endRim && Math.abs(x-q.cx)<q.half+q.rim);
+  const walkHeight=(x,z)=>poolAt(x,z)?.waterY ?? deckAt(x,z)?.deckY ?? groundAt(x,z);
+  const SWING=[2.15,2.35], SLIDE=[1.35,2.411], boarding={x:1.49,z:2.41,face:-Math.PI/2};
+  for(const q of pools)beacon(q.cx,.30,(q.front+q.back)/2,()=>startWalk({x:q.gate,z:-3.62,face:Math.PI}));
   beacon(SWING[0],.27,SWING[1],()=>startWalk({x:SWING[0],z:2.52,face:Math.PI}));
-  beacon(SLIDE[0],.33,SLIDE[1],()=>startWalk({x:SLIDE[0],z:2.80,face:Math.PI}));
+  beacon(boarding.x,.30,boarding.z,()=>startWalk(boarding));
   for(const p of places)if(stallGame[p.id])beacon(p.point[0],(p.roof||.345)+.22,p.point[2],()=>choose(p));
   const swings=[2.105,2.195].map(x=>{
     const out=fresh();block(out,0,-.1205,0,.04,.005,.02,'#c8392e');
     for(const side of [-1,1])block(out,side*.012,-.06,0,.002,.12,.002,'#6b6f73');
     const seat=solidMesh(out);seat.position.set(x,.17,SWING[1]);scene.add(seat);return seat;
   });
-  function moveHero(x,z,y=groundAt(x,z)) {      // put the walker somewhere and bring the camera along
+  function moveHero(x,z,y=walkHeight(x,z)) {      // put the walker somewhere and bring the camera along
     const mx=x-hero.x,my=y-hero.y,mz=z-hero.z;
     hero.x=x;hero.y=y;hero.z=z;
+    if(flight) {
+      flight.from.x+=mx;flight.from.y+=my;flight.from.z+=mz;
+      flight.to.x+=mx;flight.to.y+=my;flight.to.z+=mz;
+    }
     controls.target.x+=mx;controls.target.y+=my;controls.target.z+=mz;camera.position.x+=mx;camera.position.y+=my;camera.position.z+=mz;
   }
-  function splash(x,z,big) {
-    for(let i=0;i<(big?14:6);i++)puff(x,groundAt(x,z)+.03,z,big?.32:.15,big?.14:.09,big?1:.6);
-    sound.splash(big);
+  const waterRing=picture(64,64,g=>{
+    g.strokeStyle='#c2f4f3';g.lineWidth=3;g.beginPath();g.arc(32,32,28,0,Math.PI*2);g.stroke();
+  });
+  const ripples=Array.from({length:3},()=>{
+    const mesh=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({map:waterRing,transparent:true,depthWrite:false}));
+    mesh.rotation.x=-Math.PI/2;mesh.visible=false;scene.add(mesh);return mesh;
+  });
+  let nextRipple=0;
+  function ripple(x,z,big) {
+    const q=poolAt(x,z);if(!q)return;
+    const mesh=ripples[nextRipple++ % ripples.length];
+    const radius=Math.min(big?.12:.055,q.half-Math.abs(x-q.cx),q.front-z,z-q.back);
+    mesh.userData.radius=radius;mesh.userData.age=0;mesh.scale.setScalar(.01);
+    mesh.material.opacity=.8;mesh.position.set(x,q.waterY+.002,z);mesh.visible=true;
   }
+  function splash(x,z,big) {ripple(x,z,big);sound.splash(big);}
   function startSwing() {
     const seat=swings[0];let amp=.32,t=0;
     const off=()=>{ride=null;seat.rotation.x=0;hero.root.rotation.set(0,0,0);hero.heading=0;moveHero(seat.position.x,2.5);};
@@ -1208,39 +1233,58 @@ async function start() {
   }
   function startSlide() {
     const from=[hero.x,hero.z];let t=0;
-    ride={acts:[],
-      step(dt) {
-        t+=dt;let x=SLIDE[0],y,z,tilt=0;
-        if(t<.45){const k=t/.45;x=from[0]+(x-from[0])*k;z=from[1]+(2.45-from[1])*k;y=.105*k+Math.sin(k*Math.PI)*.07;}
-        else if(t<1.4){const k=(t-.45)/.95,e=k*k;if(t-dt<.45)sound.whoosh();z=2.45+.20*e;y=.105-.093*e;tilt=-.42;}
-        else if(t<1.75){const k=(t-1.4)/.35;z=2.65+.12*k;y=Math.sin(k*Math.PI)*.03;}
-        else{ride=null;hero.root.rotation.set(0,0,0);moveHero(x,2.77);puff(x,.02,2.72,.1,.1,.6);sound.thunk();return;}
-        moveHero(x,z,y);hero.heading=0;
-        hero.root.position.set(x,y,z);hero.root.rotation.set(tilt,0,0);hero.body.position.y=0;hero.body.rotation.set(0,0,0);
-      }};
+    ride={acts:[],step(dt) {
+      t+=dt;let x=SLIDE[0],z,y,tilt=0;
+      if(t<.55) {
+        const k=t/.55;
+        x=from[0]+(x-from[0])*k;z=from[1]+(SLIDE[1]-from[1])*k;y=.126*k;
+      } else if(t<1.45) {
+        if(t-dt<.55)sound.whoosh();
+        const k=((t-.55)/.90)**1.5;
+        z=SLIDE[1]+.208*k;y=.126-.120*k;tilt=-.28;
+      } else {
+        const k=Math.min(1,(t-1.45)/.30);
+        z=2.619+.095*k;y=.006*(1-k);tilt=-.28*(1-k);
+        if(k===1){ride=null;sound.thunk();}
+      }
+      moveHero(x,z);hero.heading=0;hero.root.position.set(x,y,z);hero.root.rotation.set(tilt,0,0);
+      hero.body.position.y=0;hero.body.rotation.set(0,0,0);
+      for(const foot of hero.feet){foot.position.z=tilt<0?.017:.006;foot.position.y=0;}
+    }};
   }
   function dive(q) {
-    const from=[hero.x,hero.z],to=[q.cx,clamp(hero.z,-4.5,-4.18)],face=Math.atan2(to[0]-from[0],to[1]-from[1]);let t=0;
+    const from=[hero.x,hero.z],to=[q.cx,clamp(hero.z,q.back+.12,q.front-.12)];
+    const face=Math.atan2(to[0]-from[0],to[1]-from[1]);let t=0;
     sound.good();
-    ride={acts:[],
-      step(dt) {
-        t+=dt;const k=Math.min(1,t/.75),x=from[0]+(to[0]-from[0])*k,z=from[1]+(to[1]-from[1])*k,y=.08+Math.sin(k*Math.PI)*.16;
-        moveHero(x,z,y);hero.heading=face;
-        hero.root.position.set(x,y,z);hero.root.rotation.set(k*Math.PI*2,face,0);hero.body.position.y=0;hero.body.rotation.set(0,0,0);
-        if(k===1){ride=null;hero.root.rotation.set(0,0,0);moveHero(x,z);hero.wet=true;splash(x,z,true);}
-      }};
+    ride={acts:[],step(dt) {
+      t+=dt;const k=Math.min(1,t/.72),x=from[0]+(to[0]-from[0])*k,z=from[1]+(to[1]-from[1])*k;
+      const y=q.deckY+(q.waterY-.045-q.deckY)*k+Math.sin(k*Math.PI)*.14;
+      moveHero(x,z);hero.heading=face;hero.root.position.set(x,y,z);hero.root.rotation.set(k*Math.PI*2,face,0);
+      hero.body.position.y=0;hero.body.rotation.set(0,0,0);
+      if(k===1){ride=null;hero.root.rotation.set(0,face,0);hero.wet=true;splash(x,z,true);}
+    }};
+  }
+  function visitDeck(q) {
+    hero.wet=false;hero.heading=Math.PI;moveHero(q.cx,q.front+q.endRim/2);
+    fly(new T.Vector3(q.cx,q.waterY+.055,hero.z-.022),Math.max(1.05,.9/camera.aspect),0,.76,38);
   }
   // Your own house: a porch light and a few flowers by the gate, remembered on this phone.
   let nest={u:'',light:false,plants:0};
   try{nest={...nest,...JSON.parse(localStorage.getItem('taman-pip-home')||'{}')};}catch{}
-  const garden=new Group(),glow=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({map:mist,color:0xffc45e,transparent:true,depthWrite:false}));
-  glow.visible=false;glow.renderOrder=2;scene.add(garden,glow);
+  const garden=new Group(),fixture=new Group(),housing=fresh();
+  block(housing,0,0,0,.032,.012,.025,'#50483d');fixture.add(solidMesh(housing));
+  const bulbMaterial=new T.MeshLambertMaterial({color:0xf1dfbc,emissive:0xffd296});
+  const bulb=new T.Mesh(ball(.009,'#ffffff'),bulbMaterial);
+  bulb.position.y=-.017;fixture.add(bulb);
+  const lamp=new T.PointLight(0xffd295,.009,.32,2);
+  lamp.position.set(0,-.023,.011);fixture.add(lamp);fixture.visible=false;scene.add(garden,fixture);
   const frontOf=who=>{
     const back={mansion:.2,apartment:.3}[who.kind]||.09;
     return [who.g[0]-Math.sin(who.face)*back,who.g[1]-Math.cos(who.face)*back];
   };
   function homeLook() {
-    glow.visible=false;while(garden.children.length)garden.remove(garden.children[0]);
+    fixture.visible=false;
+    for(const flower of [...garden.children]){garden.remove(flower);flower.geometry.dispose();flower.children[0].geometry.dispose();}
     if(!me || me.kind==='stall')return;
     if(nest.u!==me.u)nest={u:me.u,light:false,plants:0};
     const [bx,bz]=frontOf(me),f=me.face,y=groundAt(me.g[0],me.g[1]);
@@ -1249,11 +1293,17 @@ async function start() {
       const flower=solidMesh(out),head=new T.Mesh(ball(.009,['#e9617c','#f4ce70','#f3efe6','#c77ad1','#f08a4b','#7fb8e8'][i]),folkPaint);
       head.position.y=.022;flower.add(head);flower.position.set(bx+Math.cos(f)*side,y,bz-Math.sin(f)*side);garden.add(flower);
     }
-    glow.visible=nest.light;glow.position.set(bx-Math.sin(f)*.14,y+.12,bz-Math.cos(f)*.14);glow.scale.setScalar(.46);
+    let depth=.35,side=-.15,height=y+.16;
+    if(me.kind==='semi'){depth=.52;side=Number(me.lot.slice(1))%2?-.12:.12;height=y+.164;}
+    else if(me.kind==='mansion'){depth=.77;side=me.p[0]-me.g[0];height=.275;}
+    else if(me.kind==='pip'){depth=.275;side=-.105;height=y+.185;}
+    else if(me.kind==='apartment'){depth=.498;side=-.14;height=me.p[1]-.07;}
+    fixture.position.set(me.g[0]-Math.sin(f)*depth+Math.cos(f)*side,height,me.g[1]-Math.cos(f)*depth-Math.sin(f)*side);
+    fixture.rotation.y=f;fixture.visible=true;lamp.visible=nest.light;bulbMaterial.emissiveIntensity=nest.light?1.3:0;
     try{localStorage.setItem('taman-pip-home',JSON.stringify(nest));}catch{}
     wake();
   }
-  homeLook();
+  refreshHome=homeLook;homeLook();
   function ring(o) {                             // the neighbour comes to the gate, waves and goes back in
     sound.bell();
     if(caller)scene.remove(caller.n.root,caller.tag);
@@ -1267,13 +1317,18 @@ async function start() {
     if(ride)return ride.acts;
     const out=[],x=hero.x,z=hero.z;
     if(Math.hypot(x-SWING[0],z-2.48)<.2)out.push(['Swing',startSwing,'swing']);
-    if(Math.hypot(x-SLIDE[0],z-2.78)<.2)out.push(['Slide',startSlide,'slide']);
+    if(Math.hypot(x-boarding.x,z-boarding.z)<.18)out.push(['Slide',startSlide,'slide']);
     for(const q of pools) {
-      if(Math.hypot(x-q.gate,z+3.62)<.2)out.push(['Visit the pool',()=>{hero.heading=Math.PI;moveHero(q.gate,-3.88);},'in'+q.o.u]);
-      else if(Math.hypot(x-q.gate,z+3.88)<.13)out.push(['Back to the street',()=>{hero.heading=0;moveHero(q.gate,-3.62);hero.wet=false;},'out'+q.o.u]);
+      if(Math.hypot(x-q.gate,z+3.62)<.2)out.push(['Visit the pool',()=>visitDeck(q),'in'+q.o.u]);
     }
-    const deck=!hero.wet && deckAt(x,z);
-    if(deck)out.push(['Cannonball!',()=>dive(deck),'dive']);
+    const deck=deckAt(x,z);
+    if(deck) {
+      if(hero.wet)out.push(['Climb out',()=>visitDeck(deck),'climb']);
+      else out.push(['Cannonball!',()=>dive(deck),'dive'],['Back to the street',()=>{
+        hero.heading=0;moveHero(deck.gate,-3.62);
+        fly(new T.Vector3(hero.x,hero.y+.09,hero.z),1.25,0,1,38);
+      },'out'+deck.o.u]);
+    }
     let near=null,reach=.17;
     for(const o of people){if(o.kind==='stall')continue;const d=Math.hypot(x-o.g[0],z-o.g[1]);if(d<reach){reach=d;near=o;}}
     if(near && near===me) {
@@ -1303,8 +1358,13 @@ async function start() {
       b.mesh.scale.set(s,s,1);b.mesh.position.y=b.y+(still?0:Math.sin(now/420+b.k)*.012);b.mesh.quaternion.copy(camera.quaternion);
       if(!still)b.mesh.rotateZ(Math.sin(now/600+b.k)*.25);
     }
-    if(glow.visible)glow.quaternion.copy(camera.quaternion);
-    if(!caller)return false;
+    let waterMoving=false;
+    for(const mesh of ripples)if(mesh.visible) {
+      const k=Math.min(1,(mesh.userData.age+=dt)/.55);
+      mesh.scale.setScalar(mesh.userData.radius*2*(.15+.85*k));mesh.material.opacity=.8*(1-k);
+      mesh.visible=k<1;waterMoving ||= mesh.visible;
+    }
+    if(!caller)return waterMoving;
     const c=caller,n=c.n;c.t+=dt;
     n.show=c.t<3.2?Math.min(1,c.t*5):Math.max(0,1-(c.t-3.2)*5);
     n.hello=c.t>.4 && c.t<1.3?1.3-c.t:c.t>1.3 && c.t<2.2?2.2-c.t:0;
@@ -1317,7 +1377,7 @@ async function start() {
   todo=[
     {name:'Swim in a mansion pool',note:'Mansion Row · cannonballs allowed',tone:'#3f8fa6',go:()=>{const q=pools.find(o=>o.o===me)||pools[Math.floor(Math.random()*pools.length)];if(q)startWalk({x:q.gate,z:-3.62,face:Math.PI});}},
     {name:'Playground swing',note:'Hop on and push',tone:'#3f6e9a',go:()=>startWalk({x:SWING[0],z:2.52,face:Math.PI})},
-    {name:'Playground slide',note:'Up the tower and down',tone:'#c58a2b',go:()=>startWalk({x:SLIDE[0],z:2.80,face:Math.PI})},
+    {name:'Playground slide',note:'Up the tower and down',tone:'#c58a2b',go:()=>startWalk(boarding)},
     {name:'Ring a doorbell',note:'A neighbour comes out to wave',tone:'#7a4c7e',go:()=>{const list=people.filter(o=>o!==me && o.kind!=='stall'),o=list[Math.floor(Math.random()*list.length)];if(o)startWalk({x:o.g[0],z:o.g[1],face:o.face+Math.PI});}},
     {name:'Your own house',note:'Porch light and plants · pick Explore as on your house first',tone:'#5b7d4a',go:()=>{if(me)startWalk();else{tab='people';directory();drawer(true);}}}
   ];
@@ -1335,16 +1395,16 @@ async function start() {
       const turn=controls.getAzimuthalAngle(),dx=-Math.sin(turn)*jy+Math.cos(turn)*jx,dz=-Math.cos(turn)*jy-Math.sin(turn)*jx;
       const run=(sprint||keys.run)?1:0;lean+=(run-lean)*Math.min(1,dt*8);
       const step=.62*(1+lean*.95)*(hero.wet?.5:1)*dt;let nx=hero.x+dx*step,nz=hero.z+dz*step;
-      if(blocked(nx,nz)){ if(!blocked(nx,hero.z))nz=hero.z; else if(!blocked(hero.x,nz))nx=hero.x; else{nx=hero.x;nz=hero.z;} }
+      if(!deckAt(nx,nz) && blocked(nx,nz)){ if(deckAt(nx,hero.z) || !blocked(nx,hero.z))nz=hero.z; else if(deckAt(hero.x,nz) || !blocked(hero.x,nz))nx=hero.x; else{nx=hero.x;nz=hero.z;} }
       const want=Math.atan2(dx,dz),gap=Math.atan2(Math.sin(want-hero.heading),Math.cos(want-hero.heading));
       const before=Math.floor(hero.phase/Math.PI);
       hero.heading+=gap*Math.min(1,dt*12);hero.phase+=dt*15*(1+lean*.7)*Math.min(1,push);
       if(Math.floor(hero.phase/Math.PI)!==before && !hero.wet)sound.step();
-      const ny=groundAt(nx,nz),mx=nx-hero.x,my=ny-hero.y,mz=nz-hero.z;
+      const ny=walkHeight(nx,nz),mx=nx-hero.x,my=ny-hero.y,mz=nz-hero.z;
       hero.x=nx;hero.y=ny;hero.z=nz;
       const wet=!!poolAt(nx,nz);
       if(wet!==!!hero.wet){hero.wet=wet;if(wet)splash(nx,nz,false);}
-      if(wet && now>(hero.ripple||0)){hero.ripple=now+240;puff(nx,ny+.03,nz,.05,.07,.6);}
+      if(wet && now>(hero.ripple||0)){hero.ripple=now+240;ripple(nx,nz,false);}
       for(const spot of spots) {
         const here=Math.hypot(nx-spot.x,nz-spot.z)<spot.r;
         if(here && !spot.in)found(spot.id);
@@ -1377,7 +1437,7 @@ async function start() {
       const t=i/16*Math.PI*2,tx=x+Math.cos(t)*r*CELL,tz=z+Math.sin(t)*r*CELL;
       if(!blocked(tx,tz)){x=tx;z=tz;break search;}
     }
-    hero.x=x;hero.z=z;hero.y=groundAt(x,z);hero.heading=at ? at.face : shop ? (shop.reverse ? 0 : Math.PI) : me ? me.face : Math.PI;hero.phase=0;
+    hero.x=x;hero.z=z;hero.y=walkHeight(x,z);hero.heading=at ? at.face : shop ? (shop.reverse ? 0 : Math.PI) : me ? me.face : Math.PI;hero.phase=0;
     ride=null;hero.wet=!!poolAt(x,z);hero.root.rotation.set(0,0,0);swings[0].rotation.x=0;homeLook();$('acts').prepend($('play'));
     hero.root.visible=hero.tag.visible=true;
     atMarket=inMarket(x,z);nearStall=stallAt(x,z);
@@ -1394,6 +1454,7 @@ async function start() {
     const lane=me && (me.kind==='terrace' || me.kind==='semi'),reach=Math.min(1.35,Math.max(1,.78/camera.aspect));
     // A frontage stall has the shophouses just behind the walker: look down over their roof, not from inside them.
     if(shop) fly(new T.Vector3(x,hero.y+.09,z),.78*reach,shop.angle,!shop.reverse && shop.point[2]<3.3 && shop.point[0]<5.95?.5:1.14,38);
+    else if(at===boarding) fly(new T.Vector3(x,hero.y+.09,z),.92*reach,1.05,1.03,38);
     else if(at) fly(new T.Vector3(x,hero.y+.09,z),1.25*reach,0,1.0,38);
     else if(!me) fly(new T.Vector3(x,hero.y+.09,z),1.45*reach,0,1.22,38);
     else if(lane) fly(new T.Vector3(x,hero.y+.09,z),1.5*reach,hero.heading+Math.PI/2,.86,38);
