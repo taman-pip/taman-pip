@@ -1,5 +1,5 @@
 [
-  {"id":"dessert","name":"Dessert Shop","owner":"camry_6681","pitch":"DESSERT","point":[6.72,0.18,3.39],"keywords":"kuih lapis layered cake"},
+  {"id":"dessert","name":"Pip Desserts","owner":"camry_6681","pitch":"DESSERT","point":[6.72,0.18,3.39],"banner":["PIP DESSERTS","#a26c64",0.266,0.135,0.472,0.053],"keywords":"dessert shop kuih lapis layered cake"},
   {"id":"apam-balik","name":"Apam Balik","owner":"mellxh_","pitch":"APAM BALIK","point":[7.36,0.18,3.39]},
   {"id":"gerai-kedah","name":"Gerai Kedah","owner":"a1r1ff","pitch":"GERAI KEDAH","point":[8.0,0.18,3.39],"keywords":"Kedah-style cuisine"},
   {"id":"tomyam","name":"Tomyam","owner":"wilson.ang.39","pitch":"TOMYAM","point":[8.64,0.18,3.39],"keywords":"tom yam"},
