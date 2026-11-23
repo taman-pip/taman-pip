@@ -12,12 +12,12 @@
   <meta property="og:image" content="https://taman-pip.github.io/taman-pip/assets/town-map.webp">
   <title>Taman Pip · Town explorer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='12' fill='%23254e3b'/%3E%3Cpath d='m7 25 10-10 8 8 6-6 10 10H7' fill='%23f4d47f'/%3E%3Cpath d='M10 28h29v8H10z' fill='%23f7f1d9'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="./style.css?v=202611212331">
+  <link rel="stylesheet" href="./style.css?v=move-in-4">
   <link rel="modulepreload" href="./assets/engine.js">
   <link rel="preload" href="./assets/town.glb" as="fetch" crossorigin>
   <link rel="preload" href="./assets/residents.json" as="fetch" crossorigin>
   <link rel="preload" href="./assets/dm-sans.woff2" as="font" type="font/woff2" crossorigin>
-  <script type="module" src="./explore.js?v=playground-pools"></script>
+  <script type="module" src="./explore.js?v=move-in-4"></script>
 </head>
 <body>
 <svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
@@ -71,12 +71,13 @@
     </div>
     <button id="play" class="play" hidden><svg><use href="#i-play"/></svg><span id="play-name">Play</span></button>
     <button id="todo"><span aria-hidden="true">✦</span> Things to do</button>
-    <div id="acts"><div id="act-list"></div></div>
+    <div id="acts"><button id="counter-open" class="act" hidden></button><div id="act-list"></div></div>
     <div id="stick" aria-hidden="true"><span id="stick-knob"></span></div>
     <button id="run" aria-pressed="false" aria-label="Run"><svg><use href="#i-run"/></svg><span>Run</span></button>
     <p id="walk-hint">W A S D to walk · Shift to run · Drag to look around</p>
     <section id="card" aria-live="polite" hidden>
       <div class="card-head"><span id="card-lot" class="lot"></span><div class="card-who"><small id="card-eyebrow"></small><strong id="card-name"></strong><span id="card-where"></span></div><button id="card-close" class="plain" aria-label="Close"><svg><use href="#i-close"/></svg></button></div>
+      <p id="card-note" hidden></p>
       <p id="card-next"></p>
       <div class="card-actions"><button id="card-as" class="primary"><svg><use href="#i-home"/></svg><span></span></button><button id="card-business" hidden></button><button id="card-street"><svg><use href="#i-eye"/></svg><span>Street view</span></button><button id="card-share" aria-label="Share this house" title="Share this house"><svg><use href="#i-share"/></svg><span>Share</span></button><button id="card-leave" hidden>Not me</button></div>
     </section>
@@ -90,7 +91,7 @@
     <nav id="places" aria-label="Places to visit"></nav>
     <div class="directory-foot">
       <button id="album-open" class="tile"><span class="milestone-icon egg"><svg><use href="#i-egg"/></svg></span><span><strong>Easter eggs</strong><small><span id="album-open-count"></span> found</small></span></button>
-      <div class="tile"><span class="milestone-icon"><svg><use href="#i-build"/></svg></span><span><strong>Next: the condo</strong><small id="milestone-text">57 apartments to go</small></span></div>
+      <div class="tile"><span class="milestone-icon"><svg><use href="#i-build"/></svg></span><span><strong>Next: the condo</strong><small id="milestone-text">Counting apartments…</small></span></div>
     </div>
   </aside>
 </main>
@@ -109,6 +110,10 @@
 <dialog id="album" aria-labelledby="album-title"><div class="directory-title"><div><h2 id="album-title">Easter eggs</h2><p id="album-count" class="album-count"></p></div><button id="album-close" class="plain" aria-label="Close"><svg><use href="#i-close"/></svg></button></div>
   <ul id="album-list"></ul>
   <p class="album-foot">Kept on this device only. <button id="album-reset" class="text-link">Start over</button></p>
+</dialog>
+<dialog id="counter" aria-labelledby="counter-title">
+  <div class="directory-title"><h2 id="counter-title"></h2><button id="counter-close" class="plain" aria-label="Close counter"><svg><use href="#i-close"/></svg></button></div>
+  <p id="counter-info"></p><div id="counter-options"></div><p id="counter-order" role="status"></p>
 </dialog>
 <dialog id="arcade" aria-labelledby="arcade-title">
   <div class="arcade-top"><button id="arcade-back" class="plain" aria-label="All games" hidden><svg><use href="#i-back"/></svg></button><div class="arcade-name"><small id="arcade-stall"></small><h2 id="arcade-title"></h2></div><button id="arcade-sound" class="plain" aria-label="Sound" aria-pressed="true"><svg><use href="#i-sound"/></svg></button><button id="arcade-close" class="plain" aria-label="Close games"><svg><use href="#i-close"/></svg></button></div>

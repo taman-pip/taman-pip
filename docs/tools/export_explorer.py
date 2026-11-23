@@ -146,6 +146,8 @@ for inst in dg.object_instances:
     world=np.asarray(inst.matrix_world)
     if any(abs(t)>10 for t in world[:2,3]) or abs(world[2,3])>6:continue
     if obj.name.startswith(('ep2 photo','ep2 speech','tree proto','trunk ring','flower leaf','terrace window grille','name tag','ep2 banner','boom arm','ep2 access barrier','ep2 road notice')):continue   # boom arms are animated in the explorer
+    if obj.parent and obj.parent.name=='lot T20' and obj.name.startswith('terrace roof'):
+        continue  # The street-level terrace becomes the base of Antilia.
     if inst.is_instance and any(c.name=='Stall - AIR BALANG' for c in obj.original.users_collection):
         # Serve drinks into the north aisle; the original chicken stall backs onto this tent.
         world=world.copy()
@@ -177,7 +179,7 @@ rng=np.random.default_rng(454)
 for i,tree in enumerate(o for o in scene.objects if o.name.startswith('forest tree')):
     if i%2:continue
     x,y,z=tree.matrix_world.translation
-    if 6.16 < x < 9.28 and -4.93 < y < -2.98:continue  # aisle and approach beside the pond
+    if 6.16 < x < 9.28 and -4.93 < y < -2.20:continue  # aisle and approach beside the pond
     sc=tree.scale.x
     h=(.36+rng.uniform(-.06,.12))*sc
     col=np.array([.13,.25,.088])*rng.uniform(.74,1.32)
@@ -201,6 +203,8 @@ def place_group(parent, origin, destination, reverse=False, strip=False):
     rotation = np.diag([direction, direction, 1])
     for obj in parent.children_recursive:
         if obj.type not in ('MESH','CURVE','FONT') or obj.hide_render:continue
+        if parent.name=='Ramly burger pitch' and (obj.parent.name=='Vacancy swing' or obj.name=='TAPAK PENJAJA'):
+            continue
         if strip and (obj.name.startswith(('pot', 'prepared food', 'pancake griddle', 'golden pancake')) or (obj.type=='FONT' and obj.data.body.startswith('@'))):continue
         evaluated=obj.evaluated_get(dg)
         matrix=np.array(evaluated.matrix_world)
@@ -384,6 +388,52 @@ class Counter:
 def block(center, size, color):
     center, size = np.array(center), np.array(size)
     boxed(np.array([center-size/2, center+size/2]),np.eye(4),color)
+
+# T20 keeps its front door and neighbours. Staggered glass floors and planted
+# sky terraces give the narrow plot its own miniature Antilia.
+antilia=Counter((-4.135,-2.11,0))
+for floor in range(7):
+    z=.37+floor*.119
+    dx=(0,.036,-.027)[floor%3]
+    antilia.box((dx,0,z),(.42,.32,.102),'#789a9c')
+    antilia.box((dx-.008,0,z+.101),(.49,.36,.017),'#e9d5ad')
+    for dy in (-.115,0,.115):
+        antilia.box((dx-.213,dy,z),(.009,.012,.098),'#d1c2aa')
+    if floor in (1,3,6):
+        for dy in (-.105,.095):
+            antilia.ball((dx-.184,dy,z+.138),(.035,.039,.027),'#537d47')
+# Stake out the school before the civic unlock. The browser paints the staff sign.
+site=Counter((3,2.13,0))
+for x in (-.42,.42):
+    site.box((x,0,0),(.037,.04,.27),'#756344')
+site.box((0,-.023,.139),(.94,.035,.19),'#2e5160')
+# A food and parcel counter beside the other market pitches.
+hlr=next(shop for shop in places if shop['id']=='gerai-hlr')
+hx,_,hz=hlr['point']
+block((hx,-hz-.18,.002),(.83,.92,.018),(.55,.47,.37))
+root=hero.objects['DESSERT']
+place_group(root,np.array(root.matrix_world.translation),(hx,-hz,.012),False,True)
+# Market staff use the same apron-clad town figurines as the neighbouring stalls.
+for model,position in [('cook @mellxh_',(6.10,-2.985,.088)),('cook @a1r1ff',(hx,-hz+.075,.081))]:
+    cook=hero.objects[model]
+    place_group(cook,np.array(cook.matrix_world.translation),position,False,True)
+counter=Counter((hx,-hz,.012))
+z=counter.TOP
+for x,y in ((-.145,-.035),(-.088,.01)):
+    h=counter.plate(x,y,.027)
+    for dz,r,color in ((0,.020,'#dca355'),(.007,.021,'#553728'),(.011,.021,'#6f913e'),(.014,.020,'#deb169')):
+        counter.ball((x,y,h+dz),(r,r,.007),color)
+for x,color in ((.001,'#e3b86a'),(.062,'#d39447')):
+    h=counter.plate(x,-.04,.028)
+    counter.ball((x,-.04,h+.005),(.024,.013,.007),color,.12)
+h=counter.plate(-.01,.035,.029)
+counter.rice(-.018,.035,h+.005)
+counter.cucumber(.002,.031,h+.003)
+for x in (-.185,-.14):
+    counter.cyl((x,.055,z),.012,.034,'#d88c4b',cap='#edba75')
+for x,y,h in ((.144,-.029,.036),(.178,.035,.040),(.137,.027,.033)):
+    counter.box((x,y,z),(.059,.045,h),'#b5804f')
+    counter.box((x,y,z+h),(.010,.046,.002),'#e8d8af')
 
 # A low paved extension joins the original market at its southeast corner.
 block((7.64,-3.83,.002),(2.70,1.55,.018),(.55,.47,.37))

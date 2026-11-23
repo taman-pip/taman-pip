@@ -7,10 +7,12 @@
   {"id":"kopitandori","name":"Kedai Kopitandori","owner":"aaexoh.bmx","pitch":"KEDAI KOPITANDORI","point":[7.36,0.18,4.36],"reverse":true},
   {"id":"ayam-gepuk","name":"Ayam Gepuk","owner":"uhdsmcx","pitch":"AYAM GEPUK","point":[8.0,0.18,4.36],"reverse":true},
   {"id":"spam-balik","name":"Spam Balik Pipchun","owner":"awesomianist","pitch":"SPAM BALIK PIPCHUN","point":[8.64,0.18,4.36],"reverse":true},
-  {"id":"air-balang","name":"Air Balang","owner":"alynkburp","point":[5.48,0.17,2.32],"reverse":true,"sign":[0,0.055,0.079,0.30],"distance":0.65,"keywords":"minuman balang drinks"},
-  {"id":"gepuk-pipchun","name":"Ayam Gepuk Pipchun","owner":"limmegann","point":[5.45,0.17,2.72],"distance":0.50,"angle":0.42,"tilt":1.36,"fov":53},
-  {"id":"fried-rice","name":"Chinese Fried Rice","owner":"i.am.blue.balls","point":[4.94,0.208,3.19],"reverse":true,"sign":[0,0.0775,0.068,0.31],"banner":["CHINESE FRIED RICE","#3d6860",0.274,0.0895,0.468,0.050],"distance":0.42,"tilt":1.2,"angle":2.9,"fov":55,"keywords":"nasi goreng wok"},
-  {"id":"ramly","name":"Ramly Burger","type":"Vacant pitch","point":[6.10,0.18,3.04],"board":["PASAR MALAM  •  TAMAN PIP","BURGER RAMLY","TAPAK PENJAJA",0.0685,0.157,0.31,0.081]},
+  {"id":"air-balang","name":"Air Balang","owner":"alynkburp","point":[5.48,0.17,2.32],"reverse":true,"sign":[0,0.055,0.079,0.3],"distance":0.65,"keywords":"minuman balang drinks"},
+  {"id":"gepuk-pipchun","name":"Ayam Gepuk Pipchun","owner":"limmegann","point":[5.45,0.17,2.72],"distance":0.5,"angle":0.42,"tilt":1.36,"fov":53},
+  {"id":"fried-rice","name":"Chinese Fried Rice","owner":"i.am.blue.balls","point":[4.94,0.208,3.19],"reverse":true,"sign":[0,0.0775,0.068,0.31],"banner":["CHINESE FRIED RICE","#3d6860",0.274,0.0895,0.468,0.05],"distance":0.42,"tilt":1.2,"angle":2.9,"fov":55,"keywords":"nasi goreng wok free meal welcome party two plates"},
+  {"id":"ramly","name":"Ramly Burger","type":"Burger stall","point":[6.1,0.18,3.04],"board":["PASAR MALAM  •  TAMAN PIP","BURGER RAMLY","@cheahhoayy",0.0685,0.157,0.31,0.081],"owner":"cheahhoayy"},
   {"id":"mamak","name":"Mamak","owner":"yeemasontyrell1","type":"Shophouse C3","point":[2.475,0.32,4.25],"distance":1.14},
-  {"id":"clinic","name":"Klinik","owner":"yeeman31","type":"Shophouse C7","point":[4.575,0.32,4.25],"distance":1.14,"keywords":"clinic"}
+  {"id":"clinic","name":"Klinik","owner":"yeeman31","type":"Shophouse C7","point":[4.575,0.32,4.25],"distance":1.14,"keywords":"clinic"},
+  {"id":"gerai-hlr","name":"Gerai HLR & SPX","owner":"hlracing19","point":[7.36,0.18,2.55],"type":"Food stall & parcel pickup","sign":[0,0.0695,0.1128,0.31],"banner":["GERAI HLR  •  SPX","#87522e",0.266,0.135,0.472,0.053],"keywords":"Ramly burgers drinks roti John roti canai nasi lemak SPX self collection parcel"},
+  {"id":"school-site","name":"Sekolah Kebangsaan Taman Pip","namesake":"jy0326_14","boardColor":"#2f5564","type":"Future school · opens at 30% condo occupancy","detail":false,"owner":"zongwoei_14","point":[3,0.18,-2.13],"roof":0.37,"distance":1.65,"angle":0.2,"tilt":1.12,"keywords":"headmaster jy0326_14 namesake planned school 30% condo occupancy","board":["SEKOLAH KEBANGSAAN","SK @jy0326_14","HEADMASTER  @zongwoei_14",0.234,0.045,0.93,0.185]}
 ]

@@ -10,7 +10,7 @@ const places = [
 ];
 // The same catalogue places the Episode 3 Blender stalls and their map destinations.
 try {
-  const response = await fetch('./assets/episode3-places.json');
+  const response = await fetch('./assets/episode3-places.json?v=move-in-4');
   if (!response.ok) throw new Error('Market catalogue ' + response.status);
   for (const shop of await response.json()) {
     places.push({detail: true, type: 'Pasar Malam', tone: '#ad6652', distance: .74,
@@ -187,7 +187,7 @@ document.addEventListener('keydown', event => {
 function showFallback() {
   stage.classList.add('flat');
   const file = active ? active.id : 'town-map';
-  view.style.setProperty('--fallback', 'url("./assets/' + file + '.webp")');
+  view.style.setProperty('--fallback', 'url("./assets/' + file + '.webp' + (file==='ramly'?'?v=move-in-4':'') + '")');
   $('map-status').textContent = '3D is unavailable here. Explore the town photos in Places.';
   $('map-status').hidden = false;
   $('pins').hidden = true;
@@ -211,7 +211,47 @@ function gameHere() {
   const id = walking ? nearStall && stallGame[nearStall.id] : active ? stallGame[active.id] : person?.kind === 'stall' ? 'wok' : null;
   return games.find(o => o.id === id);
 }
+const hlrMenu=['Ramly burger','Drink','Roti John','Roti canai','Nasi lemak'];
+const partyStarts=Date.parse('2026-11-23T15:40:00+08:00');
+const partyOpen=()=>Date.now()>=partyStarts && Date.now()<partyStarts+48*60*60*1000;
+function counterLabel(place) {
+  if(place?.id==='gerai-hlr')return 'Food & SPX counter';
+  if(place?.id==='fried-rice' && partyOpen())return 'Free welcome meal';
+  return '';
+}
+function openCounter(place) {
+  if(!counterLabel(place))return;
+  const hlr=place.id==='gerai-hlr',camry=me?.u==='camry_6681';
+  $('counter-title').textContent=hlr?place.name:'Fried rice welcome party';
+  $('counter-info').textContent=hlr?'Order from @hlracing19 or collect your in-game SPX parcel.':
+    '@i.am.blue.balls is treating new neighbours to fried rice until 3:40 pm on 25 November, Malaysian time.';
+  const key='taman-pip-counter/'+place.id+'/'+(me?.u || 'visitor');
+  let collected=false;
+  try{collected=localStorage.getItem(key)==='yes';}catch{}
+  $('counter-order').textContent='';
+  const menu=hlr?[...hlrMenu,'Collect SPX parcel']:[camry?'Collect my two plates':'Collect a free plate'];
+  $('counter-options').replaceChildren(...menu.map(label=>{
+    const b=document.createElement('button'),pickup=!hlr || label==='Collect SPX parcel';
+    b.textContent=label;
+    const receipt=hlr?'SPX parcel collected':camry?'Two plates collected':'Welcome plate collected';
+    if(pickup && collected){b.disabled=true;b.textContent=receipt;}
+    b.onclick=()=>{
+      if(!hlr && !partyOpen()){b.disabled=true;$('counter-order').textContent='The welcome party has ended.';return;}
+      if(pickup){try{localStorage.setItem(key,'yes');}catch{} b.disabled=true;b.textContent=receipt;}
+      $('counter-order').textContent=hlr?(pickup?'@hlracing19 handed you your parcel.':label+' served by @hlracing19.'):
+        camry?'Two plates of fried rice for @camry_6681. Enjoy!':'Fresh from the wok. Welcome to Taman Pip!';
+      sound.good();
+    };
+    return b;
+  }));
+  $('counter').showModal();
+}
+$('counter-close').onclick=()=>$('counter').close();
+$('counter-open').onclick=()=>openCounter(active);
 function playButton() {
+  const label=walking?'':counterLabel(active);
+  $('counter-open').hidden=!label;$('counter-open').textContent=label;
+  stage.classList.toggle('at-counter',!!label);
   const game = gameHere();
   $('play').hidden = !game;
   $('todo').classList.toggle('away', !walking && !!game);
@@ -229,7 +269,8 @@ function card() {
   $('card-eyebrow').textContent = mine ? 'You live here' : person.kind === 'pip' ? 'The chairman' : 'Neighbour since Episode ' + person.since;
   $('card-name').textContent = '@' + person.u;
   $('card-where').textContent = person.floor ? 'Apartment \u00b7 Block A, floor ' + person.floor : k.label + ' \u00b7 ' + k.where;
-  const business = places.find(p => p.owner === person.u);
+  $('card-note').textContent=person.note || '';$('card-note').hidden=!person.note;
+  const business = places.find(p => p.owner === person.u || p.namesake===person.u);
   const businessButton = $('card-business');
   businessButton.hidden = !business;
   if (business) {
@@ -325,7 +366,7 @@ function doRow(item) {
 function placeRow(p) {
   const b = document.createElement('button');
   b.className = 'place'; b.dataset.id = p.id;
-  const img = new Image(); img.src = './assets/' + p.id + '.webp'; img.alt = ''; img.width = 63; img.height = 50; img.loading = 'lazy';
+  const img = new Image(); img.src = './assets/' + p.id + '.webp' + (p.id==='ramly'?'?v=move-in-4':''); img.alt = ''; img.width = 63; img.height = 50; img.loading = 'lazy';
   const words = document.createElement('span');
   const title = document.createElement('strong'); title.textContent = p.name;
   const type = document.createElement('small'); type.textContent = p.owner ? p.type + ' · @' + p.owner : p.type;
@@ -347,7 +388,7 @@ function personRow(o) {
 function directory() {
   const query = $('search').value.trim().toLowerCase().replace(/^@/, '');
   const foundPlaces = places.filter(p => [p.name, p.type, p.owner, p.keywords].join(' ').toLowerCase().includes(query));
-  const foundPeople = people.filter(o => (o.u + ' ' + o.lot + ' ' + kinds[o.kind].label + ' ' + kinds[o.kind].where).toLowerCase().includes(query));
+  const foundPeople = people.filter(o => (o.u + ' ' + o.lot + ' ' + kinds[o.kind].label + ' ' + kinds[o.kind].where + ' ' + (o.note || '')).toLowerCase().includes(query));
   $('count-people').textContent = people.filter(o => o.kind !== 'pip').length || '';
   $('count-places').textContent = places.length;
   $('count-games').textContent = games.length + todo.length;
@@ -397,7 +438,7 @@ const order = ['pip', 'mansion', 'semi', 'terrace', 'apartment', 'stall'];
 const linkedGame = {flip: 'hus', special: 'hus', huss: 'hus'}[params.get('game')] || params.get('game');   // a shared score opens the stall its game is played at
 const linkedPlace = places.find(p => p.id === params.get('place')) || places.find(p => linkedGame && stallGame[p.id] === linkedGame);
 if (linkedPlace) choose(linkedPlace, true);
-const roster = fetch('./assets/residents.json').then(r => r.json()).then(data => {
+const roster = fetch('./assets/residents.json?v=move-in-4').then(r => r.json()).then(data => {
   people = data.residents.sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || a.lot.localeCompare(b.lot));
   const count = people.filter(o => o.kind !== 'pip').length;
   const flats = data.apartments - people.filter(o => o.kind === 'apartment').length;
@@ -724,7 +765,7 @@ async function start() {
   }
   new ResizeObserver(resize).observe(view);resize();
   const loader=new T.GLTFLoader().setMeshoptDecoder(T.MeshoptDecoder);
-  asset=await loader.loadAsync('./assets/town.glb?v=playground-pools',e=>{
+  asset=await loader.loadAsync('./assets/town.glb?v=move-in-4',e=>{
     if(e.lengthComputable && e.total)$('map-status').textContent='Loading the town\u2026 '+Math.round(e.loaded/e.total*100)+'%';
   });
   await roster;
@@ -1321,6 +1362,11 @@ async function start() {
     for(const q of pools) {
       if(Math.hypot(x-q.gate,z+3.62)<.2)out.push(['Visit the pool',()=>visitDeck(q),'in'+q.o.u]);
     }
+    for(const id of ['gerai-hlr','fried-rice']) {
+      const place=places.find(p=>p.id===id),label=counterLabel(place);
+      if(label && Math.hypot(x-place.point[0],z-(place.point[2]+(place.reverse?-.25:.25)))<.27)
+        out.push([label,()=>openCounter(place),id]);
+    }
     const deck=deckAt(x,z);
     if(deck) {
       if(hero.wet)out.push(['Climb out',()=>visitDeck(deck),'climb']);
@@ -1330,7 +1376,7 @@ async function start() {
       },'out'+deck.o.u]);
     }
     let near=null,reach=.17;
-    for(const o of people){if(o.kind==='stall')continue;const d=Math.hypot(x-o.g[0],z-o.g[1]);if(d<reach){reach=d;near=o;}}
+    for(const o of people){if(o.kind==='stall')continue;const d=Math.hypot(x-o.g[0],z-o.g[1]);if(d<reach || (o===me && near && Math.abs(d-reach)<.00001)){reach=d;near=o;}}
     if(near && near===me) {
       out.push([nest.light?'Porch light off':'Porch light on',()=>{nest.light=!nest.light;sound.good();homeLook();},'light'+nest.light]);
       out.push([nest.plants<6?'Water the plants':'Water the garden',()=>{
@@ -1531,7 +1577,7 @@ async function start() {
       if(!shop.board)continue;                       // a painted signboard, redrawn for the same reason
       const [small,big,foot,dy,dz,width,height]=shop.board,plate=document.createElement('canvas');plate.width=768;plate.height=Math.round(768*height/width);
       const p=plate.getContext('2d'),h=plate.height;p.textAlign='center';p.textBaseline='middle';
-      p.fillStyle='#8a2a26';p.fillRect(0,0,768,h);p.fillStyle='#f7e6bf';
+      p.fillStyle=shop.boardColor || '#8a2a26';p.fillRect(0,0,768,h);p.fillStyle='#f7e6bf';
       p.font='600 26px "DM Sans",Arial,sans-serif';p.letterSpacing='3px';p.fillText(small,384,h*.19);p.fillText(foot,384,h*.84);
       p.font='700 78px "DM Sans",Arial,sans-serif';p.letterSpacing='2px';p.fillText(big,384,h*.52);
       const picture=new T.CanvasTexture(plate);picture.colorSpace=T.SRGBColorSpace;picture.anisotropy=8;

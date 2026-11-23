@@ -225,3 +225,11 @@ button.tile:hover{background:#e9eee1}
   .has-card #todo,#todo.away{display:none}
 }
 @media(max-height:500px){#acts{bottom:calc(14px + env(safe-area-inset-bottom));flex-direction:row-reverse}#act-list{flex-direction:row}}
+
+.map-area.at-counter #acts{display:flex}
+#counter{width:min(350px,90vw)}
+#counter-options{display:flex;flex-wrap:wrap;gap:8px}
+#counter-options button{min-height:40px;padding:6px 12px;background:#f7e7be;border-radius:9px;font-weight:650}
+#counter-order:empty{display:none}
+#counter-order,#card-note{color:var(--forest)}
+#card-note{font-size:14px;margin:8px 0}
