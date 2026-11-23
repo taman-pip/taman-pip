@@ -7,7 +7,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * clamp(t, 0, 1)));
 const rgb = c => 'rgb(' + c.join(',') + ')';
 
-import { sound } from './sound.js?v=202611212331';
+import { sound } from './sound.js?v=egg-audio';
 const sfx = sound;
 
 // ---- drawing helpers -------------------------------------------------------
@@ -52,7 +52,7 @@ function paperFlap(g, cx, cy, half, [vx, vy], amount) {   // one side of the pap
   g.fill(); g.strokeStyle = '#d6cdb8'; g.lineWidth = 2; g.stroke();
 }
 
-// ---- 1. Hus Hus Hus: wrap the finished burger in paper, three folds, one hus each ----
+// ---- 1. Huss Huss Huss: wrap the finished burger in paper, three folds, one huss each ----
 function huss(api) {
   const sides = ['top', 'right', 'bottom', 'left'], vectors = { top: [0, -1], right: [1, 0], bottom: [0, 1], left: [-1, 0] };
   let order, step, fold, shake, leave, pops = [], pulse = 0;
@@ -61,7 +61,7 @@ function huss(api) {
   function choose(side) {
     if (leave) return;
     if (side === order[step]) {
-      sfx.hus(step); step++; pops.push({ text: 'hus', x: W / 2 + vectors[side][0] * 86, y: 200 + vectors[side][1] * 86, t: 0 });
+      sfx.hus(step); step++; pops.push({ text: 'Huss', x: W / 2 + vectors[side][0] * 86, y: 200 + vectors[side][1] * 86, t: 0 });
       if (step === 3) { api.score(1); leave = .001; }
     } else { shake = .3; api.penalty(1); sfx.bad(); pops.push({ text: '-1s', x: W / 2, y: 110, t: 0, color: '#ffb4a2' }); }
   }
@@ -277,8 +277,8 @@ function gepuk(api) {
 }
 
 export const games = [
-  { id: 'hus', name: 'Hus Hus Hus', stall: 'Burger stall', tone: '#b0503f', make: huss,
-    how: 'Wrap each burger in paper: three folds, hus, hus, hus. Tap the side the arrow points at. A wrong fold costs a second.' },
+  { id: 'hus', name: 'Huss Huss Huss', stall: 'Burger stall', tone: '#b0503f', make: huss,
+    how: 'Wrap each burger in three folds. Huss Huss Huss! Tap the side the arrow points at. A wrong fold costs a second.' },
   { id: 'balang', name: 'Air Balang', stall: 'Air Balang', tone: '#336761', make: balang,
     how: 'A neighbour asks for a drink. Mix it with two ladles from the jars: Bandung is sirap and susu, Teh ais is teh and susu. The first few orders show the recipe; after that, go by the name and the colour. A wrong mix costs two seconds.' },
   { id: 'wok', name: 'Wok Hei', stall: 'Fried rice stall', tone: '#c58a2b', make: wok,

@@ -1,5 +1,5 @@
 // Every sound in the town is made here. The tune, the birds and the pasar malam are synthesised; the one
-// recording is the burger stall's "hus hus hus" (assets/hus.wav, by @thedrizzleshow, used with permission). Browsers only allow sound after a tap, so it starts on the first one.
+// recording is the burger stall's "Huss Huss Huss" (assets/hus.wav, by @thedrizzleshow, used with permission). Browsers only allow sound after a tap, so it starts on the first one.
 let ctx = null, master = null, hiss = null, timer = 0, tune = null, step = 0, due = 0, playing = false, market = 0, grill = null, murmur = null, callAt = 0, birdAt = 0;
 let muted = false, around = 0, atStall = false;
 try { muted = localStorage.getItem('taman-pip-mute') === '1'; } catch {}
@@ -37,7 +37,7 @@ function note(at, frequency, length, gain, kind = 'triangle') {
   level.gain.setValueAtTime(.0001, at); level.gain.linearRampToValueAtTime(gain, at + .008); level.gain.exponentialRampToValueAtTime(.0001, at + length);
   osc.connect(level).connect(master); osc.start(at); osc.stop(at + length + .03);
 }
-// The recording holds two rounds of three: where each hus starts and how long it lasts, in seconds.
+// The recording holds two rounds of three: where each huss starts and how long it lasts, in seconds.
 const HUS = [[[.03, .24], [.265, .19], [.445, .24]], [[1.005, .24], [1.235, .19], [1.415, .24]]];
 let clip = null, round = 0;
 function loadClip() {
@@ -50,7 +50,7 @@ function slice(at, start, length, gain) {
   level.gain.setValueAtTime(gain, at + length - .03); level.gain.linearRampToValueAtTime(.0001, at + length);
   source.connect(level).connect(master); source.start(at, start, length + .02);
 }
-// One hus: the recording when it has loaded, otherwise the synthesised stand-in below.
+// One huss: the recording when it has loaded, otherwise the synthesised stand-in below.
 function husAt(at, gain = .5, nth = 0) {
   if (clip) { const [start, length] = HUS[round % 2][nth % 3]; slice(at, start, length, gain * 2.2); return; }
   synthHus(at, gain, 150 - nth * 6);
@@ -68,6 +68,15 @@ function synthHus(at, gain = .5, pitch = 150) {
   }
   level.connect(master); buzz.start(at + .03); buzz.stop(at + .2);
   burst(at + .13, .15, 'highpass', 6200, gain * .6, .7, .02);
+}
+function burgerCall(at, gain) {
+  if (clip) {
+    const syllables = HUS[++round % HUS.length];
+    const [start] = syllables[0], [lastStart, lastLength] = syllables[2];
+    slice(at, start, lastStart + lastLength - start, gain);
+  } else {
+    for (let i = 0; i < 3; i++) synthHus(at + i * .32, gain * .45, 150 - i * 6);
+  }
 }
 const hz = semitone => 261.63 * Math.pow(2, semitone / 12);   // semitones from middle C
 // Two tunes on the same four chords (C, A minor, F, G): a slow one for the town, a quick one for the stalls.
@@ -91,8 +100,7 @@ function tick() {
   if (market > .25 && now > callAt) {              // the burger stall calling across the market
     // Faint and seldom from across the market, full voice only right at the stalls; quiet under a game, whose folds make the sound themselves.
     const close = Math.max(0, (around - .75) / .25), loud = atStall ? .16 : .05 + .6 * close * close;
-    if (clip) { round++; const [first] = HUS[round % 2], last = HUS[round % 2][2]; slice(now + .05, first[0], last[0] + last[1] - first[0], loud); }   // the whole call, as recorded
-    else for (let i = 0; i < 3; i++) synthHus(now + .05 + i * .32, loud * .45, 150 - i * 6);
+    burgerCall(now + .05, loud);
     callAt = now + (close > .5 || atStall ? 6 : 11) + Math.random() * 6;
   }
   if (tune === tunes.town && playing && market < .5 && now > birdAt) {   // a bird somewhere in the forest
@@ -119,14 +127,32 @@ export const sound = {
   market(amount) { around = amount; hear(); },
   // While a stall game is open the market is right there, whatever the map is showing.
   stall(on) { atStall = on; hear(); },
-  // One fold, one hus. `nth` (0, 1, 2) drops the pitch a little each time, as in the film: hus, hus, hus.
+  // One fold, one huss. `nth` (0, 1, 2) drops the pitch a little each time, as in the film.
   hus(nth = 0) { if (ready()) { if (nth === 0) round++; husAt(ctx.currentTime, .6, nth); } },
   sizzle() { if (ready()) burst(ctx.currentTime, .32, 'highpass', 5200, .2); },
   thunk() { if (ready()) { note(ctx.currentTime, 105, .13, .5, 'sine'); burst(ctx.currentTime, .06, 'bandpass', 800, .35); } },
   good() { if (ready()) note(ctx.currentTime, 620, .1, .2); },
   great() { if (ready()) { note(ctx.currentTime, 660, .09, .2); note(ctx.currentTime + .08, 990, .14, .2); } },
   bad() { if (ready()) note(ctx.currentTime, 130, .28, .18, 'sawtooth'); },
-  fanfare() { if (ready()) [0, 4, 7, 12, 7, 12, 16].forEach((n, i) => { note(ctx.currentTime + i * .13, hz(n + 12), i === 6 ? .7 : .16, .16); note(ctx.currentTime + i * .13, hz(n), .2, .08, 'sine'); }); },
+  discovery(id, complete) {
+    if (!ready()) return;
+    const at = ctx.currentTime + .03;
+    if (id === 'huss') {
+      burgerCall(at, .95);
+      callAt = Math.max(callAt, at + 5);
+    } else {
+      [12, 16, 19, 24].forEach((pitch, i) => {
+        note(at + i * .115, hz(pitch), i === 3 ? .46 : .18, .32);
+      });
+    }
+    if (complete) {
+      const finale = at + 1;
+      [0, 4, 7, 12, 7, 12, 16].forEach((pitch, i) => {
+        note(finale + i * .13, hz(pitch + 12), i === 6 ? .7 : .16, .16);
+        note(finale + i * .13, hz(pitch), .2, .08, 'sine');
+      });
+    }
+  },
   over() { if (ready()) { note(ctx.currentTime, 520, .14, .2); note(ctx.currentTime + .14, 390, .16, .2); note(ctx.currentTime + .3, 260, .3, .2); } },
   bell() { if (ready()) { note(ctx.currentTime, 988, .5, .22, 'sine'); note(ctx.currentTime + .32, 784, .8, .22, 'sine'); } },
   splash(big) { if (ready()) { const at = ctx.currentTime; burst(at, big ? .9 : .45, 'bandpass', 1400, big ? .4 : .2, .5, .01); burst(at + .05, big ? 1.1 : .5, 'highpass', 3800, big ? .2 : .1, .6, .05); if (big) note(at, 90, .2, .4, 'sine'); } },

@@ -1,5 +1,5 @@
-import { games, openGames } from './games.js?v=202611212331';
-import { sound } from './sound.js?v=202611212331';
+import { games, openGames } from './games.js?v=egg-audio';
+import { sound } from './sound.js?v=egg-audio';
 const places = [
   { id: 'market', name: 'Pasar Malam', type: 'Night market', tone: '#bb6845', point: [6.58, .14, 3.14], distance: 4.5, angle: .35, tilt: .91 },
   { id: 'gate', name: 'Town entrance', type: 'Welcome arch', tone: '#658052', point: [0, .15, 5.75], distance: 1.95, angle: .20, tilt: 1.22 },
@@ -45,7 +45,7 @@ const eggs = {
   gate: {from: 'Taman Pip · Episode 1', line: 'Please don’t park at this gate.', note: 'Not even for “5 MINIT”.', hint: 'Walk up to the chairman’s gate.', reel: TAMAN_1},
   guard: {from: 'Taman Pip · Episode 1', line: '“Why their house bigger than mine?”', note: 'The mansions have their own guardhouse. It has one plastic chair.', hint: 'Walk up to where the mansions begin.', reel: TAMAN_1},
   pipchun: {from: 'Taman Pip · Episode 2', line: '“Eh, Ayam Gepuk Pipchun!”', note: 'The first stall in the pasar malam.', hint: 'Play a round of Gepuk! at the Ayam Gepuk Pipchun stall.', reel: REEL.taman2},
-  huss: {from: 'Taman Pip · Episode 3', line: 'Hus hus hus.', note: 'A very suspicious sound from behind the counter.', hint: 'Wrap a burger at the burger stall.', reel: REEL.taman3},
+  huss: {from: 'Taman Pip · Episode 3', line: 'Huss Huss Huss', note: 'A very suspicious sound from behind the counter.', hint: 'Wrap a burger at the burger stall.', reel: REEL.taman3},
   seat: {from: 'Episode 3 · The Queue That Never Ended', line: 'Reserved.', note: 'A tissue packet is holding this seat.', hint: 'Walk to where the bus stops.', reel: REEL[3]}
 };
 let eggsFound = {};   // id -> time found
@@ -86,15 +86,20 @@ function album() {
   eggCount();
 }
 function found(id) {
-  if (!eggs[id] || eggsFound[id]) return;                        // each egg is announced once; after that it lives in the album
-  const egg = eggs[id], fresh = true;
-  eggsFound[id] = Date.now(); saveEggs();
+  if (!eggs[id] || eggsFound[id]) return;
+  eggsFound[id] = Date.now(); saveEggs(); eggCount();
+  sound.discovery(id, eggTally() === eggTotal);
+  if ($('arcade').open) pendingEgg = id;
+  else announceEgg(id);
+}
+function announceEgg(id) {
+  const egg = eggs[id];
   $('egg-from').textContent = egg.from; $('egg-line').textContent = egg.line; $('egg-note').textContent = egg.note;
-  $('egg-tally').textContent = (fresh ? 'Easter egg found · ' : 'Found before · ') + eggTally() + ' of ' + eggTotal + ' · tap to see them all';
+  $('egg-tally').textContent = 'Easter egg found · ' + eggTally() + ' of ' + eggTotal + ' · tap to see them all';
   const all = eggTally() === eggTotal;
   if (all) $('egg-tally').textContent = 'All ' + eggTotal + ' easter eggs found! · tap to see them all';
-  $('egg').hidden = false; eggCount(); sound.great();
-  if (all) { confetti(); setTimeout(() => sound.fanfare(), 350); }
+  $('egg').hidden = false;
+  if (all) confetti();
   clearTimeout(eggTimer); eggTimer = setTimeout(() => { $('egg').hidden = true; }, all ? 11000 : 7000);
 }
 // The whole album collected: paper confetti over the town for a few seconds.
@@ -130,13 +135,17 @@ $('album').onclick = event => { if (event.target === $('album')) $('album').clos
 $('album-reset').onclick = () => { if (confirm('Forget every easter egg found on this device?')) { eggsFound = {}; saveEggs(); album(); } };
 sound.onChange(muted => $('sound').setAttribute('aria-pressed', String(!muted)));
 $('sound').onclick = () => { sound.setMuted(!sound.muted); if (!sound.muted) sound.unlock(); };
-// Finishing a stall game can earn an egg; it is shown once the game is closed, so it is not hidden behind it.
-let owed = [];
+// The sound marks the find immediately. The banner waits for the game dialog to close.
+let pendingEgg = null;
 addEventListener('taman-game', event => {
-  const {id, score} = event.detail, egg = id === 'gepuk' ? 'pipchun' : id === 'hus' && score > 0 ? 'huss' : null;
-  if (egg && !eggsFound[egg] && !owed.includes(egg)) owed.push(egg);
+  const {id, score} = event.detail;
+  if (id === 'gepuk') found('pipchun');
+  if (id === 'hus' && score > 0) found('huss');
 });
-$('arcade').addEventListener('close', () => { const egg = owed.shift(); if (egg) found(egg); owed = []; });
+$('arcade').addEventListener('close', () => {
+  if (pendingEgg) announceEgg(pendingEgg);
+  pendingEgg = null;
+});
 eggCount();
 const params = new URLSearchParams(location.search);
 let people = [];
